@@ -1,0 +1,26 @@
+language: c
+sudo: enabled
+os:
+  - linux
+
+before_install:
+  - sudo apt-get update -y
+  - sudo apt-get install bison curl flex git gnupg git-core gperf build-essential zip curl
+  - sudo apt-get install autoconf automake make patch git
+  - sudo apt-get install p7zip-full zip 
+
+before_script:
+# Download the toolchain
+#  - git clone https://github.com/techdro-id/aarch64-linux-android -b snapshot $HOME/kernel/toolchain/snapshot
+#  - git clone https://github.com/techdro-id/stormguard-kernel $HOME/kernel/stormguard
+#  - git clone https://github.com/techdro-id/AnyKernel2 -b zImage $HOME/kernel/anykernel/zImage
+#  - git clone https://github.com/techdro-id/zip $HOME/kernel/files/mido
+
+script:
+  - ./build
+
+notifications:
+  email:
+    recipents:
+      - chenall.cn@gmail.com
+    on_failure: never
