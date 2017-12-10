@@ -4,11 +4,7 @@ os:
   - linux
 addons:
   apt:
-    packages:
-    - gcc-multilib
-    - nasm upx p7zip-full zip
-    - autoconf automake make patch
-    
+    packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch]
     
 #before_install:
 #  - sudo apt-get update -y
