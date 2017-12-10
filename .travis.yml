@@ -12,7 +12,8 @@ addons:
     - make
     - patch
     - p7zip-full
-    - zip 
+    - zip
+    - upx
     
     
 #before_install:
