@@ -6,7 +6,7 @@ os:
 before_install:
   - sudo apt-get update -y
 #  - sudo apt-get install bison curl flex git gnupg git-core gperf build-essential zip curl
-  - sudo apt-get build-essential install autoconf automake make patch git gcc-multilib
+  - sudo apt-get install build-essential autoconf automake make patch git gcc-multilib
   - sudo apt-get install p7zip-full zip 
 
 before_script:
