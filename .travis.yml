@@ -6,14 +6,8 @@ addons:
   apt:
     packages:
     - gcc-multilib
-    - nasm
-    - autoconf
-    - automake
-    - make
-    - patch
-    - p7zip-full
-    - zip
-    - upx
+    - nasm upx p7zip-full zip
+    - autoconf automake make patch
     
     
 #before_install:
