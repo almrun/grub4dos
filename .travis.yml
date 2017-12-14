@@ -23,8 +23,8 @@ before_script:
 script:
   - ./build
   - echo $TRAVIS_COMMIT
-  - qrsctl login $AK $SK
-  - qrsctl put san-boot /test /tmp/grub4dos-temp/grub4dos-0.4.6a/grldr 
+  - ./qrsctl login $AK $SK
+  - ./qrsctl put san-boot /test /tmp/grub4dos-temp/grub4dos-0.4.6a/grldr 
 
 notifications:
   email:
