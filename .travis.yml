@@ -6,7 +6,7 @@ addons:
   apt:
     packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch]
     
-#before_install:
+before_install:
 #  - sudo apt-get update -y
 #  - sudo apt-get install bison curl flex git gnupg git-core gperf build-essential zip curl
 #  - sudo apt-get install build-essential autoconf automake make patch git gcc-multilib
@@ -18,9 +18,13 @@ before_script:
 #  - git clone https://github.com/techdro-id/stormguard-kernel $HOME/kernel/stormguard
 #  - git clone https://github.com/techdro-id/AnyKernel2 -b zImage $HOME/kernel/anykernel/zImage
 #  - git clone https://github.com/techdro-id/zip $HOME/kernel/files/mido
+   - wget -O qrsctl http://devtools.qiniu.com/linux/amd64/qrsctl?ref=developer.qiniu.com  && chmod +x qrsctl
 
 script:
   - ./build
+  - echo $TRAVIS_COMMIT
+  - qrsctl login $AK $SK
+  - qrsctl put san-boot /test /tmp/grub4dos-temp/grub4dos-0.4.6a/grldr 
 
 notifications:
   email:
