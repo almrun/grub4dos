@@ -1558,7 +1558,7 @@ static struct builtin builtin_cat =
   "--replace replaces STRING with REPLACE in FILE."
   "--number  use with --locate,the max number for locate",
 };
-#ifdef CDROM_INIT
+
 /* cdrom */
 static int
 cdrom_func (char *arg, int flags)
@@ -1612,7 +1612,7 @@ static struct builtin builtin_cdrom =
   " The high word of P specifies the base register of the control block registers, and"
   " the low word of P specifies the base register of the command block registers."
 };
-#endif
+
 
 /* chainloader */
 static int
@@ -4246,17 +4246,12 @@ splashimage_func(char *arg, int flags)
 	}
 
     strcpy(splashimage, arg);
-	if (graphics_mode < 0xFF)
-	{
-	if (type == 0x4D42 && !graphics_inited) //BMP
+	if (type == 0x4D42 && (!graphics_inited || graphics_mode < 0xFF)) //BMP
 	{
 		char tmp[16];
 		sprintf(tmp,"-1 %d %d",w,h);
-		if (graphicsmode_func(tmp,1))
+		if (graphicsmode_func(tmp,1) || graphics_mode < 0xFF)
 			return 1;
-	}
-	else
-		return 0;
 	}
 	if (! animated_type && ! graphic_type )
 	graphics_end();
@@ -17346,9 +17341,7 @@ struct builtin *builtin_table[] =
   &builtin_calc,
   &builtin_call,
   &builtin_cat,
-#ifdef CDROM_INIT
   &builtin_cdrom,
-#endif
   &builtin_chainloader,
   &builtin_checkrange,
   &builtin_checktime,
