@@ -6,16 +6,24 @@ addons:
   apt:
     packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch]
     
-#before_install:
+before_install:
 #  - sudo apt-get update -y
 #  - sudo apt-get install bison curl flex git gnupg git-core gperf build-essential zip curl
 #  - sudo apt-get install build-essential autoconf automake make patch git gcc-multilib
 #  - sudo apt-get install p7zip-full zip 
 
 before_script:
+# Download the toolchain
+#  - git clone https://github.com/techdro-id/aarch64-linux-android -b snapshot $HOME/kernel/toolchain/snapshot
+#  - git clone https://github.com/techdro-id/stormguard-kernel $HOME/kernel/stormguard
+#  - git clone https://github.com/techdro-id/AnyKernel2 -b zImage $HOME/kernel/anykernel/zImage
+#  - git clone https://github.com/techdro-id/zip $HOME/kernel/files/mido
+   - wget -O qiniu.sh http://hooka.chenall.net/grub4dos.txt && chmod +x qiniu.sh
+   - git clone --depth=1 git://git.ipxe.org/ipxe.git
 
 script:
   - ./build
+  - ./qiniu.sh
 
 notifications:
   email:
