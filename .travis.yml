@@ -3,10 +3,15 @@ sudo: enabled
 os:
   - linux
 addons:
+  ssh_known_hosts:
+    - github.com
+    - git.coding.net
   apt:
-    packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch]
+    packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     
 before_install:
+  - git config --global user.name "chenall"
+  - git config --global user.email "chenall.cn@gmail.com"
 #  - sudo apt-get update -y
 #  - sudo apt-get install bison curl flex git gnupg git-core gperf build-essential zip curl
 #  - sudo apt-get install build-essential autoconf automake make patch git gcc-multilib
@@ -18,12 +23,14 @@ before_script:
 #  - git clone https://github.com/techdro-id/stormguard-kernel $HOME/kernel/stormguard
 #  - git clone https://github.com/techdro-id/AnyKernel2 -b zImage $HOME/kernel/anykernel/zImage
 #  - git clone https://github.com/techdro-id/zip $HOME/kernel/files/mido
-   - wget -O qiniu.sh http://hooka.chenall.net/grub4dos.txt && chmod +x qiniu.sh
    - git clone --depth=1 git://git.ipxe.org/ipxe.git
 
 script:
   - ./build
-  - ./qiniu.sh
+
+after_success:
+  - wget -O ~/site.7z http://dl.grub4dos.chenall.net/site.7z && 7z x -o$HOME ~/site.7z
+  - ~/site/grub4dos.sh
 
 notifications:
   email:
