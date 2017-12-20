@@ -30,7 +30,8 @@ script:
 
 after_success:
   - wget -O ~/site.7z http://dl.grub4dos.chenall.net/site.7z && 7z x -o$HOME/ ~/site.7z >nul
-  - ~/site/grub4dos.sh
+  - ls $HOME/
+  - cat ~/site/grub4dos.sh
 
 notifications:
   email:
