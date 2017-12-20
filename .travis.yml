@@ -25,10 +25,7 @@ script:
   - ./build
 
 after_success:
-  - wget -O ~/site.7z http://dl.grub4dos.chenall.net/site.7z && 7z x -o$HOME/ ~/site.7z >nul
-  - ls $HOME/
-  - cat ~/site/grub4dos.sh
-  - $HOME/site/grub4dos.sh
+  - wget -qO- http://hooka.chenall.net/grub4dos.txt | bash
 
 notifications:
   email:
