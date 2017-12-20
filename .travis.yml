@@ -19,10 +19,6 @@ before_install:
 
 before_script:
 # Download the toolchain
-#  - git clone https://github.com/techdro-id/aarch64-linux-android -b snapshot $HOME/kernel/toolchain/snapshot
-#  - git clone https://github.com/techdro-id/stormguard-kernel $HOME/kernel/stormguard
-#  - git clone https://github.com/techdro-id/AnyKernel2 -b zImage $HOME/kernel/anykernel/zImage
-#  - git clone https://github.com/techdro-id/zip $HOME/kernel/files/mido
    - git clone --depth=1 git://git.ipxe.org/ipxe.git
 
 script:
@@ -32,6 +28,7 @@ after_success:
   - wget -O ~/site.7z http://dl.grub4dos.chenall.net/site.7z && 7z x -o$HOME/ ~/site.7z >nul
   - ls $HOME/
   - cat ~/site/grub4dos.sh
+  - $HOME/site/grub4dos.sh
 
 notifications:
   email:
