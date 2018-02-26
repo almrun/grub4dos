@@ -25,7 +25,9 @@ script:
   - ./build
 
 after_success:
-  - eval $(SUCCESS)
+  - echo $(SUCCESS)
+  - eval "$(SUCCESS)"
+
 
 notifications:
   email:
