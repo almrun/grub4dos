@@ -8,7 +8,7 @@ addons:
     - github.com
     - git.coding.net
   apt:
-    packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm,gcc-4.6]
     
 before_install:
   - git config --global user.name "chenall"
