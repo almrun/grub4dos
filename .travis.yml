@@ -1,5 +1,6 @@
 language: c
 sudo: enabled
+compiler: gcc-4.5
 os:
   - linux
 addons:
