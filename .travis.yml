@@ -27,7 +27,7 @@ script:
 
 after_success:
   - echo $SUCCESS
-  - eval "$SUCCESS"
+  - $SUCCESS
 
 
 notifications:
