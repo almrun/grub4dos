@@ -9,6 +9,8 @@ addons:
     - git.coding.net
   apt:
     packages: [clang,gcc-4.9,gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    sources: 
+      - ubuntu-toolchain-r-test
     
 before_install:
   - git config --global user.name "chenall"
