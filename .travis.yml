@@ -1,6 +1,6 @@
 language: c
 sudo: enabled
-compiler: gcc-4.9
+compiler: gcc
 os:
   - linux
 addons:
@@ -8,7 +8,7 @@ addons:
     - github.com
     - git.coding.net
   apt:
-    packages: [clang,gcc-4.9,gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [clang,gcc,gc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     sources: 
       - ubuntu-toolchain-r-test
     
