@@ -1,6 +1,6 @@
 language: c
 sudo: enabled
-compiler: clang
+compiler: gcc-4.9
 os:
   - linux
 addons:
@@ -8,7 +8,7 @@ addons:
     - github.com
     - git.coding.net
   apt:
-    packages: [clang,gcc-4.6,gcc-4.6-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [clang,gcc-4.9,gcc-4.9-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     
 before_install:
   - git config --global user.name "chenall"
