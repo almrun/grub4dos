@@ -1,6 +1,6 @@
 language: c
 sudo: enabled
-compiler: gcc
+compiler: gcc-5
 os:
   - linux
 addons:
@@ -8,7 +8,7 @@ addons:
     - github.com
     - git.coding.net
   apt:
-    packages: [clang,gcc,gc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [clang,gcc-5,gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     sources: 
       - ubuntu-toolchain-r-test
     
