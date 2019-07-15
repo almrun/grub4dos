@@ -7,6 +7,7 @@ addons:
   ssh_known_hosts:
     - github.com
     - git.coding.net
+    - git.dev.tencent.com
   apt:
     packages: [gcc-4.6,gcc-4.6-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     sources: 
@@ -45,5 +46,6 @@ deploy:
     api_key: $GITHUB_TOKEN
     file: grub4dos-$(cat grub4dos_version)-$(date -u +%Y-%m-%d).7z
     skip_cleanup: true
+    overwrite: true
     on:
       tags: true
