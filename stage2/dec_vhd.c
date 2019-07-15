@@ -183,7 +183,7 @@ dec_vhd_open(void)
 	memset(&dynaheader, 0, sizeof(dynaheader));
 
 	int bytesread = (int)grub_read((unsigned long)&footer, 0x200, 0xedde0d90);
-
+	bytesread = bytesread;
 	//if (bytesread < 511) {
 		// grub_printf("bytesread %d < 511\n",bytesread);
 	//	goto quit;

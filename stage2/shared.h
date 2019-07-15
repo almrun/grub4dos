@@ -48,6 +48,7 @@
  */
 
 #define SYSTEM_RESERVED_MEMORY	0x2000000
+#define LINUX_TMP_MEMORY	0x2600000
 
 /* unifont start at 24M */
 #define UNIFONT_START		0x1800000
@@ -789,6 +790,7 @@ extern unsigned long long keyhelp_color;
 //extern unsigned char font_type;
 //extern unsigned char scan_mode;
 //extern unsigned char store_mode;
+extern unsigned char graphic_enable;
 extern unsigned char graphic_type;
 extern unsigned char graphic_row;
 extern unsigned char graphic_list;
@@ -796,6 +798,8 @@ extern unsigned short graphic_wide;
 extern unsigned short graphic_high;
 extern unsigned short row_space;
 extern char graphic_file[128];
+extern void clear_entry (int x, int y, int w, int h);
+extern void vbe_fill_color (unsigned long color);
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;
@@ -806,8 +810,9 @@ extern unsigned long current_bytes_per_pixel;
 extern unsigned long current_phys_base;
 extern unsigned long fill_color;
 extern unsigned char animated_enable;
+extern unsigned char animated_enable_backup;
 extern unsigned char animated_type;
-extern unsigned char animated_delay;
+extern unsigned short animated_delay;
 extern unsigned char animated_last_num;
 extern unsigned short animated_offset_x;
 extern unsigned short animated_offset_y;
@@ -843,6 +848,14 @@ extern int use_config_file;
 /* print debug message on startup if the DEBUG_KEY is pressed. */
 extern int debug_boot;
 extern int console_getkey (void);
+extern int console_beep (void);
+extern int beep_func(char *arg, int flags);
+extern int defer(unsigned short millisecond);
+extern unsigned short count_ms;
+extern unsigned char beep_play;
+extern unsigned char beep_enable;
+extern unsigned short beep_frequency;
+extern unsigned short beep_duration;
 extern unsigned long long initrd_start_sector;
 extern int disable_map_info;
 extern int map_func (char *arg, int flags);
@@ -1757,7 +1770,16 @@ void ipxe_init(void);
 #endif /* FSYS_PXE */
 
 extern unsigned long fb_status;
-
+extern unsigned long next_partition_drive;
+extern unsigned long next_partition_dest;
+extern unsigned long *next_partition_partition;
+extern unsigned long *next_partition_type;
+extern unsigned long long *next_partition_start;
+extern unsigned long long *next_partition_len;
+extern unsigned long long *next_partition_offset;
+extern unsigned long *next_partition_entry;
+extern unsigned long *next_partition_ext_offset;
+extern char *next_partition_buf;
 #endif /* ! ASM_FILE */
 
 #endif /* ! GRUB_SHARED_HEADER */

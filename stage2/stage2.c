@@ -89,7 +89,7 @@ static char * *titles;	/* title array, point to 256 strings. */
 extern int (*hotkey_func)(char *titles,int flags,int flags1);
 static unsigned short *title_boot;
 static int default_help_message_destoyed = 1;
-static int num_text_char(char *p);
+extern int num_text_char(char *p);
 /*
 	unsigned char disp_ul;
 	unsigned char disp_ur;
@@ -154,7 +154,9 @@ static void print_help_message (const char *message,int flags)
 				if (c == '\n')
 					c = *(++message);
 				
-				if((menu_tab & 0x40))
+				if((menu_tab & 8)	&& flags==1)
+          start_offcet = MENU_HELP_X + ((MENU_HELP_E - MENU_HELP_X - num_text_char((char *)message))>>1);
+				else if((menu_tab & 0x40) && flags==1)
 				{
 //					start_offcet = current_term->chars_per_line - MENU_HELP_X - num_text_char((char *)message);
 					start_offcet = MENU_HELP_E - num_text_char((char *)message);
@@ -310,7 +312,7 @@ myatoi (void)
 
 // END OF STEVE6375 ADDED CODE
 
-static int
+int
 num_text_char(char *p)
 {
 	int i=0;
@@ -346,6 +348,8 @@ num_text_char(char *p)
 extern char menu_cfg[];
 extern unsigned char menu_num_ctrl[];
 int use_phys_base;
+char graphic_file_shift[32];
+
 static void
 print_entry (int y, int highlight,int entryno, char *config_entries)
 {
@@ -364,18 +368,48 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		char tmp[128];
 		int file_len=grub_strlen(graphic_file);
 		int www = (font_w * MENU_BOX_W) / graphic_list;
-		graphic_file[file_len-6] = ((entryno%num_entries) / 10) | 0x30;
-		graphic_file[file_len-5] = ((entryno%num_entries) % 10) | 0x30;
-		sprintf(tmp,"--offset=%d=%d=%d %s",(graphic_type & 0x80),(font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www)),(font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space)),graphic_file);
+		int graphic_x_offset, graphic_y_offset;
+		int text_y_offset = MENU_BOX_Y+((y-MENU_BOX_Y)*((graphic_high+row_space+font_h+line_spacing-1)/(font_h+line_spacing))/graphic_list);
+	
+		graphic_x_offset = font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www);
+
+		if (graphic_type & 0x10)
+			graphic_y_offset = (font_h+line_spacing)*text_y_offset-(graphic_high/2-(font_h+line_spacing)/2);
+		else
+			graphic_y_offset = font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space);
+
+		if (entryno >= num_entries)
+		{
+			clear_entry (graphic_x_offset,graphic_y_offset,graphic_wide,graphic_high);
+			entry++;
+		}
+		else
+		{
+		graphic_file[file_len-6] = ((entryno + graphic_file_shift[entryno]) / 10) | 0x30;
+		graphic_file[file_len-5] = ((entryno + graphic_file_shift[entryno]) % 10) | 0x30;
+		sprintf(tmp,"--offset=%d=%d=%d %s",0,graphic_x_offset,graphic_y_offset,graphic_file);
 		use_phys_base=1;
+		graphic_enable = 1;
 		splashimage_func(tmp,1);
-//		use_phys_base=0; 
+		graphic_enable = 0;
 		if ((graphic_type & 4) && highlight)
-			rectangle((font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www)),(font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space)),graphic_wide,graphic_high,3);
+			rectangle(graphic_x_offset,graphic_y_offset,graphic_wide,graphic_high,3);
+		}
 		c = *entry;
-		goto graphic_end;
+		if (graphic_type & 0x10)
+		{
+			gotoxy ((graphic_x_offset + graphic_wide + font_w -1)/font_w, text_y_offset);
+			goto graphic_mixing;
+		}	
+		else
+			goto graphic_end;
 	}
 
+  gotoxy (MENU_BOX_X, y);
+  if(menu_tab & 0x40)
+    end_offcet = 1;
+  if (*(unsigned short *)0x8308 == 0x1110)
+  {
   if(!(menu_tab & 0x40))
 	{
 		gotoxy (MENU_BOX_X - 1, y);
@@ -385,10 +419,9 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 	{
 		gotoxy (MENU_BOX_E - 1, y);
 		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
-		end_offcet = 1;
-		gotoxy (MENU_BOX_E - 4, y);
 	}
-
+  }
+graphic_mixing:
   if (entry)
   {
 	if (config_entries == (char*)titles)
@@ -398,38 +431,52 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		entry = (char *)SCRATCHADDR;
 		if (menu_num_ctrl[0])
 		{
-			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
+      if(menu_tab & 0x40)
+      {
+        gotoxy (MENU_BOX_E - 4, y);
+        end_offcet = 4;
+      }
+
+			if ((!(c & menu_num_ctrl[0]) && menu_num_ctrl[0] == 1) || !*entry || *entry == '\n')
 				printf("   ");
 			else
 			{
 				if(!(menu_tab & 0x40))
 					printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
 				else
-				{
 					printf("%c%2d",menu_num_ctrl[1],(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno]);
-					end_offcet = 4;
-				}
 			}
 		}
 	}
 	c = *entry;
   }
 
-	if((menu_tab & 0x40))
+  if(menu_tab & 0x40)
+    gotoxy (MENU_BOX_X, y);
+
+  if(entry)
+  {
+  if(menu_tab & 8)
+  {
+    if(!(menu_tab & 0x40))
+      start_offcet = MENU_BOX_X + ((MENU_BOX_W - num_text_char(entry) + (menu_num_ctrl[0]?3:0)) >> 1);
+    else
+      start_offcet = MENU_BOX_X + ((MENU_BOX_W - num_text_char(entry) - end_offcet) >> 1);
+  }
+  else if((menu_tab & 0x40))
 	{
-		if(entry)
-			start_offcet = MENU_BOX_E - num_text_char(entry);
+    start_offcet = MENU_BOX_E - num_text_char(entry) - end_offcet;
 		if(start_offcet < MENU_BOX_X)
 			start_offcet = MENU_BOX_X;
-		gotoxy (MENU_BOX_X, y);
 	}
+  }
 
   for (x = fontx; x < MENU_BOX_E - end_offcet; x = fontx)
     {
       unsigned int ret;
 
       ret = MENU_BOX_E - x - end_offcet;
-      if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet - end_offcet)
+      if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet)
 	{
 		
 		ret = grub_putchar ((unsigned char)c, ret);
@@ -593,6 +640,9 @@ run_script (char *script, char *heap)
   char *old_entry = 0;
   char *cur_entry = script;
   struct builtin *builtin = 0;
+	char cmd_add[16];
+	char *menu_bat;
+	char *p;
 //  char *arg;
 //  grub_error_t errnum_old;//2010-12-16
 
@@ -606,6 +656,41 @@ run_script (char *script, char *heap)
   kernel_type = KERNEL_TYPE_NONE;
   errnum = 0;
   errorcheck = 1;	/* errorcheck on */
+
+  if (grub_memcmp (cur_entry, "!BAT", 4) == 0)
+  {
+	while (1)
+	{
+		while (*cur_entry++);
+		if (! *cur_entry)
+			break;
+		*(cur_entry - 1) = 0x0a;
+	}
+	menu_bat = (char *)grub_malloc(cur_entry - script + 10 + 512);
+	if (menu_bat == NULL)
+		return 0;
+	p = (char *)(((int)menu_bat + 511) & ~511);
+	grub_memmove (p, script, cur_entry - script);
+	grub_sprintf (cmd_add, "(md)%d+%d", (int)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
+	command_func (cmd_add, BUILTIN_SCRIPT);
+	grub_free(menu_bat);
+	
+	if (errnum >= 1000)
+	{
+		errnum=ERR_NONE;
+		return 0;
+	}
+	if (errnum && errorcheck)
+		goto ppp;
+	
+	/* If any kernel is not loaded, just exit successfully.  */
+	if (kernel_type == KERNEL_TYPE_NONE)
+		return 0;	/* return to main menu. */
+	/* Otherwise, the command boot is run implicitly.  */
+	grub_sprintf (cmd_add, "boot", 5);
+	run_line (cmd_add , BUILTIN_SCRIPT);
+  goto ppp;
+  }
 
   while (1)
     {
@@ -672,14 +757,17 @@ run_script (char *script, char *heap)
 	break;
     } /* while (1) */
 
+ppp:
   kernel_type = KERNEL_TYPE_NONE;
 
   /* If a fallback entry is defined, don't prompt a user's intervention.  */
   
   if (fallback_entryno < 0)
     {
+#if 0
       if (! (builtin->flags & BUILTIN_NO_ECHO))
 	grub_printf ("%s\n", heap);
+#endif
       print_error ();
 
       grub_printf ("\nPress any key to continue...");
@@ -690,6 +778,9 @@ run_script (char *script, char *heap)
   return 1;	/* use fallback. */
 }
 
+unsigned short beep_buf[256];
+int new_menu;
+int color_counting;
 int password_x;
 static int fallbacked_entries;
 static int old_c;
@@ -698,10 +789,11 @@ static int old_c_count_end;
 static void
 run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *heap, int entryno)
 {
-  int c, time1, time2 = -1, first_entry = 0;
+  int c = 0, time1, time2 = -1, first_entry = 0;
   char *cur_entry = 0;
   char *pass_config = 0;
-
+	color_counting = 0;
+	new_menu = 0;
 //  struct term_entry *prev_term = NULL;
 		  
 
@@ -804,6 +896,8 @@ restart1:
 
   setcursor (2);
   cls();	//clear screen so splash image will work
+  if (animated_type)
+    animated_enable = animated_enable_backup;
 
   /* Only display the menu if the user wants to see it. */
   if (show_menu)
@@ -830,11 +924,8 @@ restart1:
 				int start_offcet = 0;
 				i = num_string;
 				
-				for (j=0; j<i+1;j++)
+				for (j=0; j<i; j++)
 				{
-					if((menu_tab & 0x40))
-						start_offcet = current_term->chars_per_line - strings[j].start_x - num_text_char((char *)strings[j].addr);
-					else
 						start_offcet = strings[j].start_x;
 					gotoxy (start_offcet, strings[j].start_y);
 					current_term->setcolorstate (COLOR_STATE_NORMAL);
@@ -1005,8 +1096,11 @@ restart1:
 	  grub_timeout--;
 	}
 
-	if ((animated_type & 0x10) && (grub_timeout >= 0) && animated_enable)
+	defer(1);
+	if ((animated_enable) && (grub_timeout >= 0))
 		animated();
+	if ((beep_enable) && (grub_timeout >= 0))
+		beep_func((char *)beep_buf,1);
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
 	 pressed.  
@@ -1025,6 +1119,15 @@ restart1:
 			//0x4b40 flags HK,
 			c = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
 			putchar_hooked = 0;
+      
+      if (beep_enable)
+      {
+        beep_enable = 0;
+        beep_play = 0;
+        beep_frequency = 0;
+        console_beep();
+      }
+      
 			if (c == -1)
 			    goto restart1;
 			if (c>>16)
@@ -1039,6 +1142,14 @@ restart1:
 	  }
 	  else
 		c = /*ASCII_CHAR*/ (getkey ());
+
+    if (beep_enable)
+    {
+      beep_enable = 0;
+      beep_play = 0;
+      beep_frequency = 0;
+      console_beep();
+    }
 
 	  if (! old_c_count_end)
 	  {
@@ -1107,7 +1218,9 @@ restart1:
 			
 		if (c==0x3c00)
 		{
-			animated_enable ^= 1;
+			if (animated_type)
+        animated_enable ^= 1;
+			animated_enable_backup = animated_enable;
 			goto restart1;
 		}
 
@@ -1545,6 +1658,8 @@ done_key_handling:
 		  }
 		  //else
 		  {
+		      animated_enable_backup = animated_enable;
+		      animated_enable = 0;
 		      setcursor (1); /* show cursor and disable splashimage */
 		      cls ();
 		      print_cmdline_message (0);
@@ -1596,6 +1711,8 @@ done_key_handling:
 		{
 			font_spacing = 0;
 			line_spacing = 0;
+			animated_enable_backup = animated_enable;
+			animated_enable = 0;
 			setcursor (1);
 			cls ();
 			enter_cmdline (heap, 0);
@@ -1609,6 +1726,8 @@ done_key_handling:
   
  boot_entry:
   
+  animated_enable_backup = animated_enable;
+  animated_enable = 0;
   setcursor (1); /* show cursor and disable splashimage */
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -2365,6 +2484,7 @@ restart_config:
 	unsigned long debug_in_menu_init = 0;
 	//char *cmdline;
 	int is_preset;
+	grub_memset (graphic_file_shift, 0, 32);
 	menu_init_script_file[0] = 0;
 	{
 	    int is_opened;
@@ -2412,16 +2532,18 @@ restart_config:
 
 	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))
 	{
-	    struct builtin *builtin;
+	    struct builtin *builtin = 0;
 	    char *cmdline = (char *) CMDLINE_BUF;
 	  
 	    /* Get the pointer to the builtin structure.  */
+			if (*cmdline == ':' || *cmdline == '!')
+				goto sss;
 	    builtin = find_command (cmdline);
 	    errnum = 0;
 	    if (! builtin)
 		/* Unknown command. Just skip now.  */
 		continue;
-	  
+sss:	  
 	    if ((int)builtin != -1 && builtin->flags == 0)	/* title command */
 	    {
 		if (builtin != &builtin_title)/*If title*/
@@ -2490,6 +2612,9 @@ restart_config:
 			}
 			else
 			{
+				int i;
+				for (i = num_entries + ((state & 0xf) ? 1 : 0); i < 32; i++)
+					graphic_file_shift[i] += 1;
 				state |= 0x10;
 				continue;
 			}

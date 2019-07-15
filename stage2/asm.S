@@ -35,6 +35,7 @@
  */
 
 #define ASM_FILE
+#define repair_memory_holes 1
 
 #include "filesys.h"
 #include "shared.h"
@@ -348,11 +349,13 @@ VARIABLE(buf_drive)
 VARIABLE(usb_count_error)		//bit 7:   0 = usb_count; 1 = usb_error
 	.byte	0
 VARIABLE(usb_drive_num)	
-	.byte	0,0,0,0,0,0,0,0
+	.byte	0,0,0,0
 VARIABLE(usb_md_address)
 	.word	0
-VARIABLE(animated_enable)		//bit 0:   0 = disable; 1 = enable
-	.byte	0
+VARIABLE(count_ms)
+	.word	0
+VARIABLE(beep_frequency)
+	.word	0
 	
 	. = EXT_C(main) + 0x160	
 	
@@ -686,6 +689,30 @@ bootup_a20_failure:
 	.ascii	"\r\ngrub4dos: A20 failure. Please report with error code(if any in the above line).\r\n\0"
 
 1:
+	movw %ds:0x046c, %dx
+	xorl %ecx, %ecx
+1:
+	movw %ds:0x046c, %ax
+	cmpw %dx, %ax
+	je 1b
+1:
+	cmpw %ds:0x046c, %ax
+	jne 2f
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	incl %ecx 
+	cmpl $0, %ecx
+	jmp 1b
+2:
+	xorl %edx, %edx
+	movl %ecx, %eax
+	movl $0x37, %ecx
+	divl %ecx
+	movw %ax, ABS(EXT_C(count_ms))
 
 	/* transition to protected mode */
 	call EXT_C(real_to_prot)
@@ -5567,7 +5594,12 @@ minimum_mem_lo_in_map:
 	.long	0	/* min ram drive base below 16M */
 ENTRY(minimum_mem_hi_in_map)
 	.long	0	/* min ram drive base above 16M */
-
+#if (repair_memory_holes)
+ENTRY(prime_end)
+	.long	0,0
+ENTRY(new_end)
+	.long	0,0
+#endif
 #if 0
 int15_e820_saved_ebx:
 	.long	0
@@ -5645,6 +5677,15 @@ int15_e820_handler:
 	cmpl	$20, %ecx
 	jb	2f	/* treat this as error: invalid call. */
 
+#if (repair_memory_holes)	
+	orl	%ebx, %ebx
+	jne	3f
+	movl	%ebx, %cs:(prime_end - int13_handler)
+	movl	%ebx, %cs:(prime_end + 4 - int13_handler)
+	movl	%ebx, %cs:(new_end - int13_handler)
+	movl	%ebx, %cs:(new_end + 4 - int13_handler)
+#endif	
+3:
 #if 0
 	cmpl	$1, %ebx
 	jb	8f	/* EBX = 0 : start at beginning */
@@ -5696,7 +5737,7 @@ int15_e820_handler:
 	movl	%es:16(%di), %eax	/* Type: 1 = usable memory. */
 	decl	%eax			/* is it usable? */
 	jz	5f			/* yes, modify usable mem range */
-
+#if (!repair_memory_holes)
 	/* it is reserved memory. only modify low mem range at this moment. */
 	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
 	jnz	4f	/* int15 will not handle low mem */
@@ -5717,7 +5758,26 @@ int15_e820_handler:
 	movl	$0xA0000, %es:8(%di)
 	subl	%eax, %es:8(%di)
 	jmp	4f	/* done modifying reserved low mem range */
+#else
+	andb	$0xfe,	%cs:(prime_end - int13_handler)
+	movl	%es:4(%di), %edx
+	cmpl	%edx, %cs:(prime_end + 4 - int13_handler)	//0
+	jne 4f
+	movl	%es:(%di), %eax
+	cmpl	%eax, %cs:(prime_end - int13_handler)
+	jne 4f
 
+	subl	%cs:(new_end - int13_handler), %eax
+	sbbl	%cs:(new_end + 4 - int13_handler), %edx
+	addl	%eax, %es:8(%di)
+	adcl	%edx, %es:12(%di)
+
+	movl	%cs:(new_end - int13_handler), %eax
+	movl	%cs:(new_end + 4 - int13_handler), %edx
+	movl	%eax, %es:(%di)
+	movl	%edx, %es:4(%di)
+	jmp 4f
+#endif
 5:
 	/* it is usable memory. */
 
@@ -5728,12 +5788,20 @@ int15_e820_handler:
 #else
 	movw	$(EXT_C(hooked_drive_map)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
 #endif
-	movw	$(DRIVE_MAP_SIZE + 1), %cx
 
+#if (!repair_memory_holes)
+	movw	$(DRIVE_MAP_SIZE + 1), %cx
+#else
+	movw	$(DRIVE_MAP_SIZE + 1), %bp
+#endif
 	popl	%eax		/* available low mem size in bytes */
 	pushl	%eax		/* available low mem size in bytes */
 
+#if (!repair_memory_holes)
 	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
+#else
+	cmpl	$0, %cs:(EXT_C(int15nolow) - int13_handler)
+#endif
 	jz	7f	/* int15 will handle low mem */
 	jmp	5f	/* this "jmp" instruction can be omitted. */
 6:
@@ -5769,12 +5837,38 @@ int15_e820_handler:
 	subl	%es:8(%di), %eax
 	sbbl	%es:12(%di), %edx	/* EDX:EAX=difference */
 	jnb	5f			/* new length is too big */
+#if (!repair_memory_holes)
 	addl	%eax, %es:8(%di)
 	adcl	%edx, %es:12(%di)	/* apply new length */
+#else
+	movl	%es:8(%di), %ebx
+	movl	%es:12(%di), %ecx
+	addl	%ebx, %eax
+	adcl	%ecx, %edx
+	movl	%eax, %es:8(%di)
+	movl	%edx, %es:12(%di)
+	addl	%es:(%di), %eax
+	adcl	%es:4(%di), %edx
+	movl	%eax, %cs:(new_end - int13_handler)
+	movl	%edx, %cs:(new_end + 4 - int13_handler)
+
+	testb	$1,	%cs:(prime_end - int13_handler)
+	jne 5f
+	addl	%es:(%di), %ebx
+	adcl	%es:4(%di), %ecx
+	movl	%ebx, %cs:(prime_end - int13_handler)
+	movl	%ecx, %cs:(prime_end + 4 - int13_handler)
+	orb	$1, %cs:(prime_end - int13_handler)
+#endif
 5:
 	/* try next slot */
 	addw	$DRIVE_MAP_SLOT_SIZE, %si
+#if (!repair_memory_holes)
 	loop	6b
+#else
+	dec %bp
+	jne 6b
+#endif
 	/* done modifying usable mem range */
 4:
 	popl	%eax		/* available low mem size in bytes */
@@ -7818,6 +7912,50 @@ int13_handler_end:
 	//. = . - (int13_handler_end - int13_handler)/0x2F01
 
 #;============================================================================
+ENTRY(defer)
+
+	.code32
+
+	pushl	%ebp
+	movl	%esp, %ebp
+	pushl	%ebx
+	pushl	%ecx
+	pushl	%edx
+
+	movl	8(%ebp), %ebx
+	movw  EXT_C(count_ms), %dx
+
+	call	EXT_C(prot_to_real)
+	.code16
+
+	movw %bx, %ax
+2:
+	movw %dx, %cx
+3:
+	cmpw %cs:0x046C, %ax
+	jmp 1f
+1:
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	decw %cx
+	cmpw $0, %cx
+	jne 3b
+	decw %ax
+	jne 2b
+
+	call	EXT_C(real_to_prot)
+	.code32
+
+	popl	%edx
+	popl	%ecx
+	popl	%ebx
+	popl	%ebp
+	ret
+
 /* unsigned long
  * init_usb() : return number of usb devices.
  */
@@ -8036,7 +8174,7 @@ StartSector:
 cccc:        
 #define	DriveLen  (cccc - Dri)
 
-	.fill (DriveLen*7),1,0x00
+	.fill (DriveLen*3),1,0x00
 
 //----------------------------------------------------------------------------
 	.align	8
@@ -8347,6 +8485,8 @@ int13_41:
 
 
 int13_42_43:
+	testl $0xffffffff, 12(%si)
+	jne qtml
 	movb %ah, %cs:(Save_ah - USB2DRI)     
 	call Disk_package
 	movb $01, %cl
@@ -9366,23 +9506,23 @@ Initialization:
 	
 	call Determine_delay_units
 	call Check_bus
-	movb $0x80,%fs:0x8350
+	movb $0x80,%fs:ABS(EXT_C(usb_count_error))
 	jb 3f
 	call Disk_Info 
 	call host_initialization
 	call Device_enumerate
-	movb $0x81,%fs:0x8350
+	movb $0x81,%fs:ABS(EXT_C(usb_count_error))
 	cmpb $0, (usb_count - USB2DRI)
 	je 3f	
 	call Drive_enumerate
-	movb $0x82, %fs:0x8350			//usb_error
+	movb $0x82, %fs:ABS(EXT_C(usb_count_error))			//usb_error
 	
 	movb (EXT_C(max_dri) - USB2DRI), %al
 	orb %al, %al
 	je 3f
-	movb %al, %fs:0x8350				//usb_count
+	movb %al, %fs:ABS(EXT_C(usb_count_error))				//usb_count
 	movw $(Number - USB2DRI), %si
-	movw $0x8351, %bx
+	movw $ABS(EXT_C(usb_drive_num)), %bx
 1:				
 	movb (%si), %ah
 	movb %ah, %fs:(%bx)
@@ -9412,7 +9552,7 @@ Initialization:
 	rep movsb 
 	movw %ax, %ds
 	shrw $5, %ax
-	movw %ax, %fs:0x8359
+	movw %ax, %fs:ABS(EXT_C(usb_md_address))
 	call init_QH_AsyncListAddr
 	call Set_int13 
 	clc
@@ -9862,7 +10002,7 @@ csdyd:
 	movb %al, (DriType - USB2DRI)(%si)
 #endif	
 	incb (EXT_C(max_dri) - USB2DRI)
-	cmpb $8, (EXT_C(max_dri) - USB2DRI)
+	cmpb $4, (EXT_C(max_dri) - USB2DRI)
 	jae 4f
 	addw $DriveLen, %si     
 1:
@@ -13100,9 +13240,9 @@ ENTRY(get_mmap_entry)
 	movw	%di, %si
 
 	movl	$0xe820, %eax
-	//int	$0x15
-	pushfw
-	lcall	%cs:*ABS(EXT_C(ROM_int15))
+	int	$0x15
+//	pushfw
+//	lcall	%cs:*ABS(EXT_C(ROM_int15))
 
 	jnc	1f
 	movl	$0, %ebx	/* set end indicator */
@@ -14409,7 +14549,8 @@ VARIABLE(linux_data_real_addr)
 	.long	0
 
 VARIABLE(linux_bzimage_tmp_addr)
-	.long	SYSTEM_RESERVED_MEMORY
+//	.long	SYSTEM_RESERVED_MEMORY
+	.long	LINUX_TMP_MEMORY
 
 ENTRY(linux_boot)
 
@@ -14493,7 +14634,7 @@ linux_real_mode_startup:
 1:				//linux_setup_seg:
 	.word	0
 
-
+#if 0
 /*
  * void toggle_blinking (void)
  * BIOS call "INT 10H Function 1003h" to toggle intensity/blinking bit
@@ -14539,7 +14680,7 @@ ENTRY(toggle_blinking)
 	popl	%ebx
 	popl	%ebp
 	ret
-
+#endif
 
 /*
  * unsigned int console_putchar (unsigned int c, unsigned int max_width)
@@ -14878,14 +15019,21 @@ ENTRY(console_getkey)
 
 	cmpl	$0xFFFFFFFF, %edx
 	jne	1f
-	testb $0x10, animated_type
-	jz 4b
+  pushl $1
+  call defer;
+  popl %eax
+  cmpb $0, beep_enable
+  je 2f
+  call beep_func
+2:
 	cmpl $0, graphics_inited
 	je 4b
 	cmpb $0, animated_enable
 	je 4b
 	call animated
-	jmp 4b
+	cmpw $0x3c00, %ax
+	jne 4b
+	movw %ax, %dx
 1:
 	call	remap_ascii_char	/* ESI changed */
 	movzwl	%dx, %eax
@@ -15181,6 +15329,49 @@ ENTRY(console_cls)
 	popl	%ebp
 	ret
 
+
+ENTRY(console_beep)
+
+	.code32
+
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
+
+	call	EXT_C(prot_to_real)
+	.code16
+
+	sti		/* for hardware interrupt or watchdog */
+	cmpw $0, EXT_C(beep_frequency)
+	je 1f
+	movb $0xb6, %al
+	outb %al, $0x43
+	movw EXT_C(beep_frequency), %ax
+	outb %al, $0x42
+	xchgb %ah, %al
+	outb %al, $0x42
+	inb $0x61, %al
+	orb $3, %al
+	outb %al, $0x61
+	jmp 2f
+1:
+	inb $0x61, %al
+	andb $0xFC, %al
+	outb %al, $0x61
+2:
+	call	EXT_C(real_to_prot)
+	.code32
+
+	sti
+	movw	%dx, %ax
+
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
+	ret
+  
 
 /*
  * void console_setcursor (unsigned long on)
@@ -15748,7 +15939,8 @@ ENTRY(multi_boot)
 	 * function must be at below 1M, together with real-mode functions.
 	 */
 
-	movl	$(SYSTEM_RESERVED_MEMORY + 0x0100000), %esi
+//	movl	$(SYSTEM_RESERVED_MEMORY + 0x0100000), %esi
+	movl	$(LINUX_TMP_MEMORY + 0x0100000), %esi
 	movl	$0x0100000, %edi				/* 1M */
 	movl	ABS(EXT_C(cur_addr)), %ecx
 	subl	%esi, %ecx
@@ -16451,7 +16643,7 @@ ENTRY(unset_int13_handler)
 	popl	%ebp
 	ret
 
-
+#if 0
 /* memmove using SSE */
 /*
  * void memmove_forward_SSE (void *dst, const void *src, unsigned int len)
@@ -16516,7 +16708,7 @@ ENTRY(memmove_forward_SSE)
 	popl	%edi
 	popl	%esi
 	ret
-
+#endif
 
 /* get_code_end() :  return the address of the end of the code
  * This is here so that it can be replaced by asmstub.c.
@@ -16869,9 +17061,9 @@ VARIABLE(grub_putchar)
 #define next_partition_dest		((*(unsigned long **)0x8304)[1])
 #define next_partition_partition	((*(unsigned long ***)0x8304)[2])
 #define next_partition_type		((*(unsigned long ***)0x8304)[3])
-#define next_partition_start		((*(unsigned long ***)0x8304)[4])
-#define next_partition_len		((*(unsigned long ***)0x8304)[5])
-#define next_partition_offset		((*(unsigned long ***)0x8304)[6])
+#define next_partition_start		((*(unsigned long long ***)0x8304)[2])
+#define next_partition_len		((*(unsigned long long ***)0x8304)[3])
+#define next_partition_offset		((*(unsigned long long ***)0x8304)[4])
 #define next_partition_entry		((*(unsigned long ***)0x8304)[7])
 #define next_partition_ext_offset	((*(unsigned long ***)0x8304)[8])
 #define next_partition_buf		((*(char ***)0x8304)[9])
@@ -16889,11 +17081,11 @@ VARIABLE(next_partition_partition)
 VARIABLE(next_partition_type)
 	.long	0
 VARIABLE(next_partition_start)
-	.long	0
+	.long	0, 0
 VARIABLE(next_partition_len)
-	.long	0
+	.long	0, 0
 VARIABLE(next_partition_offset)
-	.long	0
+	.long	0, 0
 VARIABLE(next_partition_entry)
 	.long	0
 VARIABLE(next_partition_ext_offset)

@@ -3125,7 +3125,7 @@ static char *color_list[16] =
 };
 
 static int color_number (char *str);
-int blinking = 1;
+//int blinking = 1;
   
   /* Convert the color name STR into the magical number.  */
 static int
@@ -3134,7 +3134,7 @@ color_number (char *str)
       char *ptr;
       int i;
       int color = 0;
-      int tmp_blinking = blinking;
+//      int tmp_blinking = blinking;
       
       /* Find the separator.  */
       for (ptr = str; *ptr && *ptr != '/'; ptr++)
@@ -3146,14 +3146,14 @@ color_number (char *str)
 
       /* If STR contains the prefix "blink-", then set the `blink' bit
 	 in COLOR.  */
-      if (substring ("blink-", str, 0) <= 0)
-	{
-	  if (tmp_blinking == 0)
-		return -1;
-	  tmp_blinking = 0x80;
-	  color = 0x80;
-	  str += 6;
-	}
+//     if (substring ("blink-", str, 0) <= 0)
+//	{
+//	  if (tmp_blinking == 0)
+//		return -1;
+//	  tmp_blinking = 0x80;
+//	  color = 0x80;
+//	  str += 6;
+//	}
       /* Terminate the string STR.  */
       *ptr = 0;
       /* Search for the color name.  */
@@ -3174,12 +3174,12 @@ color_number (char *str)
       for (i = 0; i < 16; i++)
 	if (grub_strcmp (color_list[i], str) == 0)
 	  {
-	    if (i >= 8)
-	    {
-		if (tmp_blinking == 0x80)
-			return -1;
-		tmp_blinking = 0;
-	    }
+//	    if (i >= 8)
+//	    {
+//		if (tmp_blinking == 0x80)
+//			return -1;
+//		tmp_blinking = 0;
+//	    }
 	    color |= i << 4;
 	    break;
 	  }
@@ -3187,10 +3187,11 @@ color_number (char *str)
       if (i == 16)
 	return -1;
 
-      blinking = tmp_blinking;
+//      blinking = tmp_blinking;
       return color;
 }
 
+extern int color_counting;
 /* color */
 /* Set new colors used for the menu interface. Support two methods to
    specify a color name: a direct integer representation and a symbolic
@@ -3201,6 +3202,7 @@ color_func (char *arg, int flags)
   char *normal;
   unsigned long long new_color[COLOR_STATE_MAX];
   unsigned long long new_normal_color;
+  int _64bit = 0;
 
   errnum = 0;
   if (! *arg)
@@ -3211,7 +3213,14 @@ color_func (char *arg, int flags)
 
   if (!(current_term->setcolor))
       return 0;
-  blinking = 1;
+//  blinking = 1;
+	
+	if (memcmp(arg,"--64bit",7) == 0)
+	{
+		_64bit = 1;
+		arg = skip_to (0, arg);
+	}
+	
   normal = arg;
   arg = skip_to (0, arg);
 
@@ -3220,14 +3229,14 @@ color_func (char *arg, int flags)
   {
 	color_state state_t;
 	unsigned long state = 0;
-	int i = 0, tag = 0;
+	int tag = 0;
 	arg = normal;
 	while (*arg)
 	{
 		if (memcmp(arg,"normal",6) == 0)
 		{
 			state_t = COLOR_STATE_NORMAL;
-			if (i == 0)
+			if (color_counting == 0)
 				tag = 1;
 		}
 		else if (memcmp(arg,"highlight",9) == 0)
@@ -3262,10 +3271,10 @@ color_func (char *arg, int flags)
 		    new_color[state_t] = new_normal_color ;
 		}
 
-		if (!(new_color[state_t] >> 8))
+		if (!(new_color[state_t] >> 8) && _64bit == 0)
 			new_color[state_t] = color_8_to_64 (new_color[state_t]);
 
-		if (tag && i==0)
+		if (tag && color_counting==0)
 		{		
 			new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[state_t];		
 			new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff | ((splashimage_loaded & 2)?0:(new_color[state_t] & 0xffffffff00000000));			
@@ -3273,7 +3282,7 @@ color_func (char *arg, int flags)
 		}
 		
 		state |= 1<<state_t;
-		i++;
+		color_counting++;
 		if (tag && !(splashimage_loaded & 2) && ((new_color[state_t] & 0xffffffff00000000) == 0))
 			new_color[state_t] |= (new_color[COLOR_STATE_NORMAL] & 0xffffffff00000000);
 	}
@@ -3283,19 +3292,19 @@ color_func (char *arg, int flags)
 	return 1;
   }
 
+	if (!(new_normal_color >> 8) && _64bit == 0)
+		new_normal_color = color_8_to_64 (new_normal_color);
+
 	if (!*arg && (flags & (BUILTIN_CMDLINE | BUILTIN_BAT_SCRIPT)))
 	{
 		current_term->setcolor (1,&new_normal_color);
 		return 1;
 	}
 
-  if (new_normal_color >> 8)	/* disable blinking */
-	blinking = 0;
-	
-	if (!(new_normal_color >> 8))
-			new_normal_color = color_8_to_64 (new_normal_color);
-  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
+//  if (new_normal_color >> 8)	/* disable blinking */
+//	blinking = 0;
 
+  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
   /* The second argument is optional, so set highlight_color
      to inverted NORMAL_COLOR.  */
 		new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff | ((splashimage_loaded & 2)?0:(new_normal_color & 0xffffffff00000000));
@@ -3313,7 +3322,7 @@ color_func (char *arg, int flags)
 			if (((int)new_color[i] < 0) && ! safe_parse_maxint (&normal, &new_color[i]))
 				return 0;
 
-			if (!(new_color[i] >> 8))
+			if (!(new_color[i] >> 8) && _64bit == 0)
 				new_color[i] = color_8_to_64 (new_color[i]);
 			
 			if (!(splashimage_loaded & 2) && ((new_color[i] & 0xffffffff00000000) == 0))
@@ -3365,7 +3374,8 @@ static struct builtin builtin_color =
 	"2. Can assign colors to a specified target. NORMAL should be in the first place.\n"
 	"e.g. color normal=0x888800000000. (The rest is the same as NORMAL.)\n"
 	"e.g. color normal=0x4444440000ffff helptext=0xc highlight=0xd heading=0xe border=0xa. (Background color from NORMAL.)\n"
-	"e.g. color standard=0xFFFFFF. (Change the console color.)"
+	"e.g. color standard=0xFFFFFF. (Change the console color.)\n"
+	"e.g. color --64bit 0x30. (Make numbers less than 0x100 treated in 64-bit color.)"
 };
 
 
@@ -4151,9 +4161,8 @@ static int terminal_func (char *arg, int flags);
 extern char splashimage[128];
 int graphicsmode_func (char *arg, int flags);
 unsigned long X_offset,Y_offset;
-int vbe_fill_color (unsigned long color);
 unsigned char animated_type=0;           //bit 0-3:times   bit 4:repeat forever  bit 7:transparent background  type=00:disable
-unsigned char animated_delay;
+unsigned short animated_delay;
 unsigned char animated_last_num;
 unsigned short animated_offset_x;
 unsigned short animated_offset_y;
@@ -4194,6 +4203,8 @@ splashimage_func(char *arg, int flags)
 	} 
   else if (grub_memcmp (arg, "--fill-color=", 13) == 0)
   {
+		if (graphics_mode < 0xFF)
+			return !(errnum = ERR_NO_VBE_BIOS);
     arg += 13;
     if (safe_parse_maxint (&arg, &val))
 		{
@@ -4214,7 +4225,15 @@ splashimage_func(char *arg, int flags)
 	}
   arg++;
   if (safe_parse_maxint (&arg, &val))
-    animated_delay = val;
+  {
+    if (arg[0]==':' && arg[1]=='m' && arg[2]=='s')
+    {
+      animated_delay = val;
+      arg += 3;
+    }
+    else
+      animated_delay = val * 55;
+  }
   arg++;
   if (safe_parse_maxint (&arg, &val))
     animated_last_num = val;
@@ -4227,9 +4246,7 @@ splashimage_func(char *arg, int flags)
   arg = skip_to (0, arg);
 		
   strcpy(animated_name, arg);
-	animated_enable = 1;
-	if (!(animated_type & 0x10) && (animated_type & 0x0f))
-		animated();
+  animated();
   return 1;
   }    
    
@@ -4280,12 +4297,12 @@ static struct builtin builtin_splashimage =
   "splashimage [--offset=[type]=[x]=[y]] FILE",
   "type: bit 7:transparent background\n"
   "splashimage --fill-color=[0xrrggbb]\n"
-  "splashimage --animated=[type]=[delay]=[last_num]=[x]=[y] START_FILE\n"
-  "type: bit 0-3:times  bit 4:repeat forever  bit 7:transparent background\n"
-  "      type=00:disable\n"
-  "delay: ticks\n"
+  "splashimage --animated=[type]=[duration]=[last_num]=[x]=[y] START_FILE\n"
+  "type: bit 0-3:times(0=repeat play)  bit 5:alone\n"
+  "      bit 7:transparent background  type=00:disable\n"
+  "duration: [10] unit is a tick. [10:ms] units are milliseconds,\n"
   "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
-  "hotkey F2,control animation:  Play/stop.\n"
+  "hotkey F2,control animation:  play/stop.\n"
   "Load FILE as the background image when in graphics mode."
 };
 
@@ -4614,6 +4631,7 @@ displaymem_func (char *arg, int flags)
 	       "Upper memory (to first chipset hole): %uK\n",
 	       (unsigned long)saved_mem_lower, (unsigned long)saved_mem_upper);
 	}
+#if 0
   if (mbi.flags & MB_INFO_MEM_MAP)
     {
       struct AddrRangeDesc *map = (struct AddrRangeDesc *) saved_mmap_addr;
@@ -4648,7 +4666,35 @@ displaymem_func (char *arg, int flags)
 	  map = ((struct AddrRangeDesc *) (((int) map) + 4 + map->size));
 	}
     }
+#else
+	grub_printf (" [Address Range Descriptor entries "
+		   "immediately follow (values are 64-bit)]\n");
 
+	unsigned long cont, addr;
+	addr = SCRATCHADDR;
+  cont = 0;	
+	do
+	{
+		cont = get_mmap_entry ((void *) addr, cont);	/* int15/e820 ------ will write memory! */
+		struct AddrRangeDesc *map = (struct AddrRangeDesc *) addr;
+		if (!sector)
+		{
+			grub_printf ("  %s: Base: 0x%8lX, Length: 0x%8lX, End: 0x%8lX\n",
+					(map->Type == MB_ARD_MEMORY)?"Usable RAM":"Reserved  ",
+		       map->BaseAddr,
+					 map->Length,
+					 map->BaseAddr + map->Length);
+		}
+		else if (map->Type == MB_ARD_MEMORY)
+		{
+			grub_printf ("  Usable (Hex sectors): Base: %8lX, Length: %8lX, End: %8lX\n",
+					map->BaseAddr / 0x200,
+					map->Length / 0x200,
+					map->BaseAddr + map->Length / 0x200);
+		}
+	}
+  while (cont);	
+#endif
   return 1;
 }
 
@@ -4762,8 +4808,10 @@ fallback_func (char *arg, int flags)
     fallback_entries[i] = -1;
 
   fallback_entryno = (i == 0) ? -1 : 0;
-  if (go) return (errnum = MAX_ERR_NUM);
-  return 1;
+//  if (go) return (errnum = MAX_ERR_NUM);
+  if (go) return (errnum = 1000);
+//  return 1;
+		return 0;
 }
 
 static struct builtin builtin_fallback =
@@ -5485,17 +5533,6 @@ static struct builtin builtin_commandline =
 
 extern int bsd_evil_hack;
 
-extern unsigned long next_partition_drive;
-extern unsigned long next_partition_dest;
-extern unsigned long *next_partition_partition;
-extern unsigned long *next_partition_type;
-extern unsigned long *next_partition_start;
-extern unsigned long *next_partition_len;
-extern unsigned long *next_partition_offset;
-extern unsigned long *next_partition_entry;
-extern unsigned long *next_partition_ext_offset;
-extern char *next_partition_buf;
-
 //extern unsigned long dest_partition;
 //static unsigned long entry;
 //static unsigned long ext_offset;
@@ -5579,8 +5616,8 @@ static int
 set_partition_hidden_flag (int hidden)
 {
   unsigned long part = 0xFFFFFF;
-  unsigned long start, len, offset, ext_offset1;
-  unsigned long type, entry1;
+  unsigned long long start, len, offset;
+  unsigned long type, entry1, ext_offset1;
   
 #if 0
   /* The drive must be a hard disk.  */
@@ -5604,9 +5641,9 @@ set_partition_hidden_flag (int hidden)
 		next_partition_dest		= current_partition,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
@@ -5908,8 +5945,8 @@ find_func (char *arg, int flags)
 				for (drive = (*devtype == 'h')?0x80:0; drive < FIND_DRIVES; drive++)
 				{
 					unsigned long part = 0xFFFFFF;
-					unsigned long start, len, offset, ext_offset1;
-					unsigned long type, entry1;
+					unsigned long long start, len, offset;
+					unsigned long type, entry1, ext_offset1;
 
 					saved_drive = current_drive = drive;
 					saved_partition = current_partition = part;
@@ -5932,9 +5969,9 @@ find_func (char *arg, int flags)
 							next_partition_dest		= 0xFFFFFF,
 							next_partition_partition	= &part,
 							next_partition_type		= &type,
-							next_partition_start		= &start,
-							next_partition_len		= &len,
-							next_partition_offset		= &offset,
+							next_partition_start		= (unsigned long long *)(void *)&start,
+							next_partition_len		= (unsigned long long *)(void *)&len,
+							next_partition_offset		= (unsigned long long *)(void *)&offset,
 							next_partition_entry		= &entry1,
 							next_partition_ext_offset	= &ext_offset1,
 							next_partition_buf		= mbr,
@@ -6761,22 +6798,38 @@ uuid_func (char *argument, int flags)
 	if (write)
 		return ! (errnum = ERR_BAD_ARGUMENT);
   errnum = 0;
-  /* Search in hard disks first, since floppies are slow */
+
 	for (drive = 0; drive <= 0xff; drive++)
     {
       unsigned long part = 0xFFFFFF;
-      unsigned long start, len, offset, ext_offset1;
-      unsigned long type, entry1;
+      unsigned long long start, len, offset;
+      unsigned long type, entry1, ext_offset1;
 		int bsd_part;
 		int pc_slice;
 
-		if ((drive > 10 && drive < 0x80) || (drive > (*((char *)0x475) + 0x80) && drive < 0x9f))
-			continue;
+//		if ((drive > 10 && drive < 0x80) || (drive > (*((char *)0x475) + 0x80) && drive < 0x9f))
+//			continue;
 
+		for (i = 0; i < DRIVE_MAP_SIZE; i++)
+		{
+      if (drive_map_slot_empty (bios_drive_map[i]))
+				break;
+      if (bios_drive_map[i].from_drive == drive)
+				goto yyyyy;
+    }	
+#define FIND_HD (*((char *)0x475))
+#define FIND_FD (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
+		if (drive < FIND_FD || (drive >=0x80 && drive < 0x80 + FIND_HD))
+#undef FIND_HD
+#undef FIND_FD
+			goto yyyyy;
+		if (drive < 0x9f)	
+ 			continue;
+yyyyy:
 		saved_drive = current_drive = drive;
 		saved_partition = current_partition = part;
 
-		if (drive < 0x90 && grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0)
+		if (drive < 0x9f && grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0)
 		{
 			biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00);
 			if (!(probe_bpb((struct master_and_dos_boot_sector *)0x2f000)) && open_device())
@@ -6795,9 +6848,9 @@ uuid_func (char *argument, int flags)
 		next_partition_dest		= 0xFFFFFF,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
@@ -6823,19 +6876,19 @@ qqqqqq:
 			}
                       if (! *arg)
                         {
-						grub_printf ("(%s%x%c%c%c%c):", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+						grub_printf ("(%s%d%c%c%c%c):", ((drive<0x80)?"fd":(drive>=0x9f)?"":"hd"),((drive<0x80 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
 						if (*uuid_found || debug)
-							grub_printf("%s%s is \"%s\".\n\t", ((drive<10)?"   ":(drive>=0x9f)?"  ":" "), p, ((*uuid_found) ? uuid_found : "(unsupported)"));
+							grub_printf("%s%s is \"%s\".\n\t", ((drive<0x80)?"   ":(drive>=0x9f)?"   ":" "), p, ((*uuid_found) ? uuid_found : "(unsupported)"));
 						print_fsys_type();
 		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
                         {
-                         grub_sprintf(root_found,"(%s%x%c%c%c%c)", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+                         grub_sprintf(root_found,"(%s%d%c%c%c%c)", ((drive<0x80)?"fd":(drive>=0x9f)?"":"hd"),((drive<0x80 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
                          goto found;
                         }
 		}
 	    }
-		if (drive > 0x8f)
+		if (drive >= 0x9f)
 			break;
 
 	  /* We want to ignore any error here.  */
@@ -8433,6 +8486,7 @@ failed_exfat_grldr:
 
 	if (*(unsigned short *)((char *)BS + 0x16) == 0x6412)							//'12 64'
 	{
+		probed_total_sectors = *(unsigned long *)((char *)BS + 0x20);
 		filesystem_type = 7;																						//fat12-64
 		return 0;
 	}
@@ -9166,8 +9220,8 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   probed_heads = best_HPC;
   sectors_per_cylinder = probed_heads * probed_sectors_per_track;
   probed_cylinders = (Lmax / sectors_per_cylinder) + 1;
-  if (probed_cylinders < Cmax + 1)
-      probed_cylinders = Cmax + 1;
+//  if (probed_cylinders < Cmax + 1)
+//      probed_cylinders = Cmax + 1;
   probed_total_sectors_round = sectors_per_cylinder * probed_cylinders;
   probed_total_sectors = Lmax + 1;
 
@@ -9303,6 +9357,7 @@ map_func (char *arg, int flags)
   unsigned long BPB_S = 0;
   unsigned long in_situ = 0;
   unsigned long in_situ_flags = 0;
+  unsigned short in_situ_id = -1;
   int add_mbt = -1;
   unsigned long long tmp_mem_max = map_mem_max;
   /* prefer_top now means "enable blocks above address of 4GB".
@@ -9330,6 +9385,10 @@ map_func (char *arg, int flags)
 
 	if (grub_memcmp (arg, "--status", 8) == 0)
 	{
+		int byte = 0;
+		arg += 8;
+		if (grub_memcmp (arg, "-byte", 5) == 0)
+			byte = 1;
 		arg = skip_to(1,arg);
 		if (*arg>='0' && *arg <='9')
 		{
@@ -9339,7 +9398,8 @@ map_func (char *arg, int flags)
 			{
 				if (hooked_drive_map[i].from_drive != (unsigned char)mem)
 					continue;
-				sprintf(ADDR_RET_STR,"0x%lX",(unsigned long long)hooked_drive_map[i].start_sector);
+//				sprintf(tmp,"0x%lX",(unsigned long long)hooked_drive_map[i].start_sector);
+				*(unsigned long *)ADDR_RET_STR = (unsigned long)hooked_drive_map[i].start_sector;
 				return hooked_drive_map[i].sector_count;
 			}
 			return 0;
@@ -9414,7 +9474,7 @@ map_func (char *arg, int flags)
 			break;
 		  }
 //		if (debug > 0)
-		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c%c%c\n", hooked_drive_map[i].from_drive, hooked_drive_map[i].to_drive, hooked_drive_map[i].max_head, hooked_drive_map[i].max_sector, hooked_drive_map[i].to_cylinder, hooked_drive_map[i].to_head, hooked_drive_map[i].to_sector, (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, ((hooked_drive_map[i].to_cylinder & 0x4000) ? 'C' : hooked_drive_map[i].to_drive < 0x80 ? 'F' : hooked_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((j < DRIVE_MAP_SIZE) ? '=' : '>'), ((hooked_drive_map[i].max_sector & 0x80) ? ((hooked_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((hooked_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
+		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c%c%c\n", hooked_drive_map[i].from_drive, hooked_drive_map[i].to_drive, hooked_drive_map[i].max_head, hooked_drive_map[i].max_sector, hooked_drive_map[i].to_cylinder, hooked_drive_map[i].to_head, hooked_drive_map[i].to_sector, byte?(((unsigned long long)hooked_drive_map[i].start_sector)*0x200):((unsigned long long)hooked_drive_map[i].start_sector), byte?(((unsigned long long)hooked_drive_map[i].sector_count)*0x200):((unsigned long long)hooked_drive_map[i].sector_count), ((hooked_drive_map[i].to_cylinder & 0x4000) ? 'C' : hooked_drive_map[i].to_drive < 0x80 ? 'F' : hooked_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((j < DRIVE_MAP_SIZE) ? '=' : '>'), ((hooked_drive_map[i].max_sector & 0x80) ? ((hooked_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((hooked_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
 	    }
 	for (i = 0; i < DRIVE_MAP_SIZE; i++)
 	  {
@@ -9431,7 +9491,7 @@ map_func (char *arg, int flags)
 			continue;
 	      }
 //	    if (debug > 0)
-		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c<%c\n", bios_drive_map[i].from_drive, bios_drive_map[i].to_drive, bios_drive_map[i].max_head, bios_drive_map[i].max_sector, bios_drive_map[i].to_cylinder, bios_drive_map[i].to_head, bios_drive_map[i].to_sector, (unsigned long long)bios_drive_map[i].start_sector, (unsigned long long)bios_drive_map[i].sector_count, ((bios_drive_map[i].to_cylinder & 0x4000) ? 'C' : bios_drive_map[i].to_drive < 0x80 ? 'F' : bios_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((bios_drive_map[i].max_sector & 0x80) ? ((bios_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((bios_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
+		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c<%c\n", bios_drive_map[i].from_drive, bios_drive_map[i].to_drive, bios_drive_map[i].max_head, bios_drive_map[i].max_sector, bios_drive_map[i].to_cylinder, bios_drive_map[i].to_head, bios_drive_map[i].to_sector, byte?(((unsigned long long)bios_drive_map[i].start_sector)*0x200):((unsigned long long)bios_drive_map[i].start_sector), byte?(((unsigned long long)bios_drive_map[i].start_sector)*0x200):((unsigned long long)bios_drive_map[i].sector_count), ((bios_drive_map[i].to_cylinder & 0x4000) ? 'C' : bios_drive_map[i].to_drive < 0x80 ? 'F' : bios_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((bios_drive_map[i].max_sector & 0x80) ? ((bios_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((bios_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
 	  }
 	return 1;
       }
@@ -9847,6 +9907,8 @@ map_func (char *arg, int flags)
 	if (! safe_parse_maxint (&p, &tmp))
 		return 0;
 	in_situ_flags = (unsigned char)tmp;
+	if (*(arg + 10) == '0' && *(arg + 11) == 'x')
+		in_situ_id = (unsigned short)tmp >> 8;
 	in_situ = 1;
       }
     else if (grub_memcmp (arg, "--in-place", 10) == 0)
@@ -10593,7 +10655,7 @@ map_whole_drive:
 				p = (char *)&hooked_fragment_map;
 				filename = p + FRAGMENT_MAP_SLOT_SIZE;
 				p = fragment_map_slot_find(p, from);
-				if (p);
+				if (p)
 				{
 					grub_memmove (p, p + *p, filename - p - *p);
 					grub_memset (filename - *p, 0, *p);
@@ -11096,6 +11158,7 @@ map_whole_drive:
 
   if (in_situ)
 	bios_drive_map[j].to_cylinder = (in_situ_flags << 8) | (
+		in_situ_id != 0xffff ? in_situ_id :
 		filesystem_type == 1 ? 0x0E /* FAT12 */ :
 		filesystem_type == 2 ? 0x0E /* FAT16 */ :
 		filesystem_type == 3 ? 0x0C /* FAT32 */ :
@@ -11305,7 +11368,7 @@ delete_drive_map_slot:
 	p = (char *)&hooked_fragment_map;
 	filename = p + FRAGMENT_MAP_SLOT_SIZE;
 	p = fragment_map_slot_find(p, from);
-	if (p);
+	if (p)
 	{
 		grub_memmove (p, p + *p, filename - p - *p);
 		grub_memset (filename - *p, 0, *p);
@@ -11365,7 +11428,7 @@ static struct builtin builtin_map =
   "map",
   map_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] [--swap-drivs=DRIVE1=DRIVE2] TO_DRIVE FROM_DRIVE]",
+  "map [--status[-byte]] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] [--swap-drivs=DRIVE1=DRIVE2] [--in-situ=FLAGS_AND_ID] TO_DRIVE FROM_DRIVE]",
   "Map the drive FROM_DRIVE to the drive TO_DRIVE. This is necessary"
   " when you chain-load some operating systems, such as DOS, if such an"
   " OS resides at a non-first drive. TO_DRIVE can be a disk file, this"
@@ -11380,11 +11443,13 @@ static struct builtin builtin_map =
   "\nIf RAW=0, then int15/ah=87h will be used to access memdrives."
   "\nIf one of --status, --hook, --unhook, --rehook, --floppies, --harddrives, --memdisk-raw, --a20-keep-on, --safe-mbr-hook, --int13-scheme,"
   " --ram-drive, --rd-base or --rd-size is given, then any other command-line arguments will be ignored."
-  "\nThe --mem option indicates a drive in memory."
+  "\nThe --mem option indicates a drive in memory(0-4Gb)."
+  "\nThe --mem --top option indicates a drive in memory(>4Gb)."	
   "\nif RESERV is used and <= 0, the minimum memory occupied by the memdrive is (-RESERV) in 512-byte-sectors."
   "\nif RESERV is used and > 0,the memdrive will occupy the mem area starting at absolute physical address RESERV in 512-byte-sectors and ending at the end of this mem"
   "\nIf --swap-drivs=DRIVE1=DRIVE2 is given, swap DRIVE1 and DRIVE2 for FROM_DRIVE."
   " block(usually the end of physical mem)."
+  "\nIf --in-situ=FLAGS_AND_ID is given, the low byte is FLAGS(default 0) and the high byte is partition type ID(use 0xnnnn to specify)."
 };
 
 
@@ -11932,8 +11997,8 @@ parttype_func (char *arg, int flags)
 {
   unsigned long long new_type = -1;
   unsigned long part = 0xFFFFFF;
-  unsigned long start, len, offset, ext_offset1;
-  unsigned long type, entry1;
+  unsigned long long start, len, offset;
+  unsigned long type, entry1, ext_offset1;
 
   /* Get the drive and the partition.  */
 
@@ -11978,9 +12043,9 @@ parttype_func (char *arg, int flags)
 		next_partition_dest		= current_partition,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
@@ -12196,8 +12261,9 @@ static struct builtin builtin_pause =
   "pause",
   pause_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_NO_ECHO,
-  "pause [--wait=T] [MESSAGE ...]",
+  "pause [--test-key] [--wait=T] [MESSAGE ...]",
   "Print MESSAGE, then wait until a key is pressed or T seconds has passed."
+  "--test-key display keyboard code."	
 };
 
 
@@ -12341,6 +12407,7 @@ static int
 read_func (char *arg, int flags)
 {
   unsigned long long addr, val;
+	int bytes=0;
 
   errnum = 0;
   if (*(long *)arg == 0x2E524156)//VAR. 
@@ -12350,10 +12417,19 @@ read_func (char *arg, int flags)
 	return 0;
     return (*(long **)0x8304)[addr];
   }
+	if (grub_memcmp (arg, "--8", 3) == 0)
+	{
+		bytes=1;
+		arg += 3;
+		arg = skip_to (0, arg);
+	}
   if (! safe_parse_maxint (&arg, &addr))
     return 0;
 
-  val = *(unsigned long *)(unsigned long)(RAW_ADDR (addr));
+	if (!bytes)
+		val = *(unsigned long *)(unsigned long)(RAW_ADDR (addr));
+	else
+		val = *(unsigned long long *)(unsigned long)(RAW_ADDR (addr));
   printf_debug0 ("Address 0x%lx: Value 0x%lx\n", addr, val);
   return val;
 }
@@ -12363,8 +12439,8 @@ static struct builtin builtin_read =
   "read",
   read_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "read ADDR",
-  "Read a 32-bit value from memory at address ADDR and"
+  "read [--8] ADDR",
+  "Read a 32-bit or 64-bit value from memory at address ADDR and"
   " display it in hex format."
 };
 
@@ -12848,7 +12924,10 @@ static struct builtin builtin_write =
   write_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "write [--offset=SKIP] [--bytes=N] ADDR_OR_FILE INTEGER_OR_STRING",
-  "Write a 32-bit value to memory or write a string to file(or device!)."
+  "Write a 32-bit INTEGER to memory ADDR or write a STRING to FILE(or device!)\n"
+  "To memory ADDR: default N=4, otherwise N<=8. Use 0xnnnnnnnn form.\n"
+  "To FILE(or device): default STRING size.\n"
+  "  UTF-8(or hex values) use \\xnn form, UTF-16(big endian) use \\Xnnnn form."
 };
 
 
@@ -12980,8 +13059,8 @@ real_root_func (char *arg, int attempt_mnt)
   else if (grub_memcmp (arg, "endpart", 7) == 0)
     {
 	unsigned long part = 0xFFFFFF;
-	unsigned long start, len, offset, ext_offset1;
-	unsigned long type, entry1;
+	unsigned long long start, len, offset;
+	unsigned long type, entry1, ext_offset1;
 	
 	/* find MAX/END partition of the current root drive */
 	
@@ -13005,9 +13084,9 @@ real_root_func (char *arg, int attempt_mnt)
 		next_partition_dest		= 0xFFFFFF,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
@@ -13955,6 +14034,58 @@ static struct keysym keysym_table[] =
   {"ctrlF8",		0x6500},
   {"ctrlF9",		0x6600},
   {"ctrlF10",		0x6700},
+  
+  {"Aq",            0x1000},	// A=Alt or AltGr.	Provided by steve.
+  {"Aw",            0x1100},
+  {"Ae",            0x1200},
+  {"Ar",            0x1300},
+  {"At",            0x1400},
+  {"Ay",            0x1500},
+  {"Au",            0x1600},
+  {"Ai",            0x1700},
+  {"Ao",            0x1800},
+  {"Ap",            0x1900},
+  {"Aa",            0x1e00},
+  {"As",            0x1f00},
+  {"Ad",            0x2000},
+  {"Af",            0x2100},
+  {"Ag",            0x2200},
+  {"Ah",            0x2300},
+  {"Aj",            0x2400},
+  {"Ak",            0x2500},
+  {"Al",            0x2600},
+  {"Az",            0x2c00},
+  {"Ax",            0x2d00},
+  {"Ac",            0x2e00},
+  {"Av",            0x2f00},
+  {"Ab",            0x3000},
+  {"An",            0x3100},
+  {"Am",            0x3200},
+  {"A1",            0x7800},
+  {"A2",            0x7900},
+  {"A3",            0x7A00},
+  {"A4",            0x7B00},
+  {"A5",            0x7C00},
+  {"A6",            0x7D00},
+  {"A7",            0x7E00},
+  {"A8",            0x7F00},
+  {"A9",            0x8000},
+  {"A0",            0x8100},
+  {"oem102",        0x565c},
+  {"shiftoem102",   0x567c},
+  {"Aminus",        0x8200},
+  {"Aequal",				0x8300},
+  {"Abracketleft",  0x1A00},
+  {"Abracketright", 0x1B00},
+  {"Asemicolon",    0x2700},
+  {"Aquote",        0x2800},
+  {"Abackquote",    0x2900}, // 2a00 is alt+shift
+  {"Abackslash",    0x2b00},
+  {"Asemicolon",    0x2700},
+  {"Acomma",        0x3300},
+  {"Aperiod",       0x3400},
+  {"Aslash",        0x3500},
+  
 };
 
 //static int find_key_code (char *key);
@@ -14074,16 +14205,16 @@ static struct builtin builtin_setkey =
   "setkey",
   setkey_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "setkey [TO_KEY FROM_KEY]",
-  "Change the keyboard map. The key FROM_KEY is mapped to the key TO_KEY."
-  " A key must be an alphabet, a digit, or one of these: escape, exclam,"
-  " at, numbersign, dollar, percent, caret, ampersand, asterisk, parenleft,"
-  " parenright, minus, underscore, equal, plus, backspace, tab, bracketleft,"
-  " braceleft, bracketright, braceright, enter, control, semicolon, colon,"
-  " quote, doublequote, backquote, tilde, shift, backslash, bar, comma,"
-  " less, period, greater, slash, question, alt, space, capslock, FX (X"
-  " is a digit), and delete. If no argument is specified, reset key"
-  " mappings."
+  "setkey [NEW_KEY USA_KEY]",
+  "Map default USA_KEY to NEW_KEY."
+  " Key names: 0-9, A-Z, a-z or escape, exclam, at, numbersign, dollar,"			//Provided by steve.
+  " percent, caret, ampersand, asterisk, parenleft, parenright, minus,"
+  " underscore, equal, plus, backspace, tab, bracketleft, braceleft,"
+  " bracketright, braceright, enter, semicolon, colon, quote, doublequote,"
+  " backquote, tilde, backslash, bar, comma, less, period, greater,"
+  " slash, question, alt, space, delete, oem102, shiftoem102,"
+  " [ctrl|shift]F1-10. For Alt+ prefix with A, e.g. 'setkey at Aequal'."
+  " Use 'setkey at at' to reset one key, 'setkey' to reset all keys."
 };
 
 
@@ -14553,7 +14684,7 @@ testvbe_func (char *arg, int flags)
     int scanline = controller->version >= 0x0300
       ? mode->linear_bytes_per_scanline : mode->bytes_per_scanline;
     /* FIXME: this assumes that any depth is a modulo of 8.  */
-    int bpp = mode->bits_per_pixel / 8;
+    int bpp = (mode->bits_per_pixel + 7) / 8;
     int width = mode->x_resolution;
     int height = mode->y_resolution;
     int x, y;
@@ -15019,6 +15150,7 @@ vbeprobe_func (char *arg, int flags)
   printf_debug0 (" VBE version %d.%d\n",
 	       (unsigned long) (controller->version >> 8),
 	       (unsigned long)(unsigned char) (controller->version));
+  printf_debug0 (" ModeNum  Attr  Resolution  BitPerPixel  MemoryModel   RGBASize   RGBAPosition\n");
 
   /* Iterate probing modes.  */
   for (mode_list = vbe_far_ptr_to_linear (controller->video_mode);
@@ -15053,13 +15185,26 @@ vbeprobe_func (char *arg, int flags)
 	    default: model = "Unknown"; break;
 	    }
 	  
-	  printf_debug0 ("  %X: %X, %ux%ux%u, %s\n",
+		printf_debug0 ("  0x%-3X    %2X   %4u x %-4u     %2u       %-12s",
 		       (unsigned long) *mode_list,
 		       (unsigned long) mode->mode_attributes,
 		       (unsigned long) mode->x_resolution,
 		       (unsigned long) mode->y_resolution,
 		       (unsigned long) mode->bits_per_pixel,
 		       model);
+					 
+		 if (mode->memory_model == 0x06)
+				printf_debug0 ("   %u:%u:%u:%u    %u:%u:%u:%u\n",	
+					 mode->red_mask_size,
+		       mode->green_mask_size,
+		       mode->blue_mask_size,
+					 mode->reserved_mask_size,
+					 mode->red_field_position,
+		       mode->green_field_position,
+		       mode->blue_field_position,
+					 mode->reserved_field_position);
+			else
+				printf_debug0 ("\n");
 	  
 	  if (mode_number != -1)
 	    break;
@@ -15375,8 +15520,8 @@ xyz_done:
 	    if (mode->memory_model != 6) /* Direct Color */
 		continue;
 	      
-	    if (mode->bits_per_pixel != 24 && mode->bits_per_pixel != 32 && mode->bits_per_pixel != 16 && _Z_ < 0x10)
-		continue;
+//	    if (mode->bits_per_pixel != 24 && mode->bits_per_pixel != 32 && mode->bits_per_pixel != 16 && _Z_ < 0x10)
+//		continue;
 	    }
 	    /* ok, find out one valid mode. */
 	    if (tmp_graphicsmode == *mode_list) /* the specified mode */
@@ -15650,6 +15795,34 @@ echo_func (char *arg,int flags)
 				gotoxy(saved_x, saved_y);
 			return 1;
 		}
+		else if (grub_memcmp(arg,"-mem=",3) == 0)	//-mem=offset=length
+		{
+			unsigned long long offset;
+			unsigned long long length;
+			unsigned char s[16];
+			unsigned long long j = 16;
+			
+			arg += 5;
+			safe_parse_maxint (&arg, &offset);
+			arg++;
+			safe_parse_maxint (&arg, &length);
+
+			if (j > length)
+				j = length;
+			while (1)
+			{
+				grub_memmove64((unsigned long long)(int)s, offset, j);
+				hexdump(offset,(char*)&s,j);
+				if (quit_print)
+					break;
+				offset += j;
+				length -= j;
+				if (!length)
+					break;
+				j = (length >= 16)?16:length;
+			}
+			return 1;
+		}
       else break;
    	 arg = skip_to (0,arg);
    }
@@ -15711,6 +15884,8 @@ echo_func (char *arg,int flags)
       }
       
       grub_putchar((unsigned char)*arg, 255);
+      if (!(*arg))
+				break;
    }
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -15728,15 +15903,16 @@ static struct builtin builtin_echo =
    "echo",
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [[$[ABCD]]MESSAGE ...] ",
+   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [-mem=offset=length] [[$[ABCD]]MESSAGE ...] ",
    "-P:XXYY position control line(XX) and column(YY).\n"
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
    "-e      enable interpretation of backslash escapes.\n"
-   "        \\xnn show UTF-8 characters.\n"
-   "        \\Xnnnn show unicode characters.\n"
+   "        \\xnn show UTF-8(or hex values) characters.\n"
+   "        \\Xnnnn show unicode characters(big endian).\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
+	 "-mem=offset=length  hexdump.\n"
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
    "A=bright background, B=bright characters, C=background color, D=Character color.\n"
    "$[0xCD] 8 or 64 bit number value for MESSAGE. C=background, D=Character.\n"
@@ -16281,6 +16457,7 @@ unsigned char timeout_y = 0;
 unsigned long long timeout_color = 0;
 unsigned long long keyhelp_color = 0;
 unsigned char graphic_type = 0;
+unsigned char graphic_enable = 0;
 unsigned char graphic_row;
 unsigned char graphic_list;
 unsigned short graphic_wide;
@@ -16290,7 +16467,9 @@ char graphic_file[128];
 struct box DrawBox[16];
 struct string strings[16];
 char *p_string= (char *)MENU_TITLE;
+extern int new_menu;
 unsigned long string_total = 0; 
+int num_text_char(char *p);
 
 static int
 setmenu_func(char *arg, int flags)
@@ -16298,48 +16477,76 @@ setmenu_func(char *arg, int flags)
 	char *tem;
 	unsigned long long val;
 	struct border tmp_broder = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0};
+	int i;
+
+	if (new_menu == 0)
+	{
+		num_string = 0;
+		string_total = 0;
+		p_string = (char *)MENU_TITLE;
+		for (i=0; i<16; i++)
+			DrawBox[i].index = 0;
+		new_menu = 1;
+	}
 
 	for (; *arg && *arg != '\n' && *arg != '\r';)  
 	{
 		if (grub_memcmp (arg, "--string=", 9) == 0)
 		{
-			unsigned char i;
 			i = num_string;
-			if (i > 15)
-				return 0;
+			int x_horiz_center = 0;
+			int y_count_bottom = 0;
+			int string_width; 
+			char *p;
 			arg += 9;
-			errorcheck_func ("off",0);
-			if (safe_parse_maxint (&arg, &val))
-				strings[i].start_x = val;						//x
-			else
+			if (!*arg || *arg == '\n' || *arg == '\r')
 			{
 				num_string = 0;
-				errorcheck_func ("on",0);
-				continue;
+				string_total = 0;
+				p_string = (char *)MENU_TITLE;
+				goto cont;
 			}
-			errorcheck_func ("on",0);
+			if (i > 15)
+				return 0;
+			if (*arg == '=')
+				x_horiz_center++;
+			else if (safe_parse_maxint (&arg, &val))
+				strings[i].start_x = val;						//x
 			arg++;
+			if (*arg == '-')
+			{
+				arg++;
+				y_count_bottom++;
+			}
 			if (safe_parse_maxint (&arg, &val))
-				strings[i].start_y = val;							//y
+			{
+				if (y_count_bottom == 0)
+					strings[i].start_y = val;							//y
+				else
+					strings[i].start_y = current_term->max_lines - val - 1;
+			}
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
 				strings[i].color = val;								//color	
 			arg += 2;
 			strings[i].addr = (int)p_string;				//addr
-			i = parse_string(arg);
-			string_total += i;
+			p = arg;
+			while (*p++ != '"');
+			*(p - 1) = 0;
+			if (x_horiz_center)
+				strings[i].start_x = ((current_term->chars_per_line - num_text_char(arg)) >> 1) - 1;			//x
+			string_width = parse_string(arg);
+			string_total += string_width;
 			if (string_total > 0x800)
 				return 0;
-			arg[i] = 0;
-			for (; *arg && *arg != '"'; p_string++,arg++)
-				*p_string = *arg;
+			while (*arg && string_width--)
+				*p_string++ = *arg++;
 			*p_string++ = 0;
 			num_string++;		
+			arg++;
     }
-		if (grub_memcmp (arg, "--draw-box=", 11) == 0)
+		else if (grub_memcmp (arg, "--draw-box=", 11) == 0)
 		{
-			unsigned char i;
-			
 			arg += 11;
 			errorcheck_func ("off",0);
 			if (safe_parse_maxint (&arg, &val))
@@ -16349,13 +16556,13 @@ setmenu_func(char *arg, int flags)
 				for (i=0; i<16; i++)
 					DrawBox[i].index = 0;
 				errorcheck_func ("on",0);
-				continue;
+				goto cont;
 			}
 			errorcheck_func ("on",0);
 			if (*arg != '=')
 			{
 				DrawBox[i].index = 0;
-				continue;
+				goto cont;
 			}
 			if (i > 16)
 				return 0;
@@ -16393,9 +16600,10 @@ setmenu_func(char *arg, int flags)
     }
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
-			int i;
 			menu_tab = 0;
 			num_string = 0;
+			string_total = 0;
+			p_string= (char *)MENU_TITLE;
 			menu_font_spacing = 0;
 			menu_line_spacing = 0;
 			font_spacing = 0;
@@ -16406,6 +16614,7 @@ setmenu_func(char *arg, int flags)
 				current_term->chars_per_line = current_x_resolution / font_w;
 			}
 			*(unsigned char *)0x8274 = 0;
+			*(unsigned short *)0x8308 = 0x1110;
 			memmove ((char *)&menu_border,(char *)&tmp_broder,sizeof(tmp_broder));
 			graphic_type = 0;
 			for (i=0; i<16; i++)
@@ -16435,12 +16644,29 @@ setmenu_func(char *arg, int flags)
 		else if (grub_memcmp (arg, "--left-align", 12) == 0)
 		{
 			menu_tab &= 0xbf;
+			menu_tab &= 0xf7;
 			arg += 12;
 		}
 		else if (grub_memcmp (arg, "--right-align", 13) == 0)
 		{
 			menu_tab |= 0x40;
+			menu_tab &= 0xf7;
 			arg += 13;
+		}
+		else if (grub_memcmp (arg, "--middle-align", 14) == 0)
+		{
+			menu_tab |= 8;
+			arg += 14;
+		}
+		else if (grub_memcmp (arg, "--triangle-on", 13) == 0)
+		{
+			*(unsigned short *)0x8308 = 0x1110;
+			arg += 13;
+		}
+		else if (grub_memcmp (arg, "--triangle-off", 14) == 0)
+		{
+			*(unsigned short *)0x8308 = 0;
+			arg += 14;
 		}
 		else if (grub_memcmp (arg, "--highlight-short", 17) == 0)
 		{
@@ -16491,6 +16717,11 @@ setmenu_func(char *arg, int flags)
 				while (*arg == ' ' || *arg == '\t')
 					arg++;
 			}
+		}
+    else if (grub_memcmp (arg, "--auto-num-all-on", 17) == 0)
+		{
+			*(unsigned char *)0x8274 = 2;
+			arg += 17;
 		}
 		else if (grub_memcmp (arg, "--auto-num-on", 13) == 0)
 		{
@@ -16570,10 +16801,11 @@ setmenu_func(char *arg, int flags)
 			arg++;
 			strcpy(graphic_file, arg);
 			menu_border.menu_box_h = graphic_row * graphic_list;
+			menu_border.border_w = 0;
 		}
 		else
 			return 0;
-		
+cont:		
 		while(*arg && !isspace(*arg) && *arg != '-')
 			arg++;
 		while (*arg == ' ' || *arg == '\t')
@@ -16589,31 +16821,35 @@ static struct builtin builtin_setmenu =
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "setmenu --parameter | --parameter | ... ",
   "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
-	"--left-align* --right-align --auto-num-off* --auto-num-on\n"
+	"--left-align* --right-align --middle-align\n"
+	"--auto-num-off* --auto-num-all-on --auto-num-on --triangle-on* --triangle-off\n"
 	"--highlight-short* --highlight-full\n"
-  "--font-spacing=[font]:[line]. default 0\n"
-  "--string=[x]=[y]=[color]=[\"string\"]  max 16 commands.\n"
+	"--font-spacing=FONT:LINE. default 0\n"
+	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"
+	"Note: there is no X, position in the middle.\n"
+	"Note: -Y represents the count from the bottom.\n"
 	"			--string= to delete all strings.\n"
-  "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
-  "Note: [w]=0 in the middle. [l]=0 no display border\n"
-  "--help=[x]=[w]=[y]\n"
-	"Note: [x]=0* menu start and width. [x]<>0 and [w]=0 Entire display width minus 2x.\n"
-	"--keyhelp=[y_offset]=[color]\n"
-	"Note: [y_offset]=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
-	"      [y_offset]!=0 keyhelp to entryhelp line offset.two coexist.\n"
-	"      [y_offset]<=4, entryhelp display line number.\n"
-	"      [color]=0* default 'color helptext'.\n"
-	"--timeout=[x]=[y]=[color]\n"
-	"Note: [x]=[y]=0* located at the end of the selected item.\n"
-	"Note: [color]=0* default 'color highlight'.\n"
+	"--box x=X y=Y w=W h=H l=L\n"
+	"Note: W=0 in the middle. L=0 no display border\n"
+	"--help=X=W=Y\n"
+	"Note: X=0* menu start and width. X<>0 and W=0 Entire display width minus 2x.\n"
+	"--keyhelp=Y_OFFSET=COLOR\n"
+	"Note: Y_OFFSET=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
+	"      Y_OFFSET!=0 keyhelp to entryhelp line offset.two coexist.\n"
+	"      Y_OFFSET<=4, entryhelp display line number.\n"
+	"      COLOR=0* default 'color helptext'.\n"
+	"--timeout=X=Y=COLOR\n"
+	"Note: X=Y=0* located at the end of the selected item.\n"
+	"Note: COLOR=0* default 'color highlight'.\n"
 	"* indicates default. Use 0xRRGGBB to represent colors.\n"
 	"setmenu --graphic-entry=type=row=list=wide=high=row_space START_FILE\n"
-	"type: bit0:highlight  bit1:flip  bit2:box  bit7:transparent background\n"
+	"type: bit0:highlight  bit1:flip  bit2:box  bit3:highlight background\n"
+	"      bit4:Picture and text mixing  bit7:transparent background.\n"
 	"naming rules for START_FILE: *n.???   n: 00-99\n"
 	"--u clear all.\n"
-	"--draw-box=[index]=[start_x]=[start_y]=[horiz]=[vert]=[linewidth]=[color].\n"
-	"			[index]:1-16; [color]:24-bit color; [linewidth]:1-255; all dimensions in pixels.\n"
-	"			--draw-box=[index] to delete the specified index.\n"
+	"--draw-box=INDEX=START_X=START_y=HORIZ=VERT=LINEWIDTH=COLOR.\n"
+	"			INDEX:1-16; COLOR:24-bit color; LINEWIDTH:1-255; all dimensions in pixels.\n"
+	"			--draw-box=INDEX to delete the specified index.\n"
 	"			--draw-box= to delete all indexes." 
 };
 
@@ -17117,6 +17353,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 static int goto_func(char *arg, int flags)
 {
 	errorcheck_func ("on",0);
+#if 0
 	errnum = ERR_BAT_GOTO;
 	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
 	{
@@ -17124,13 +17361,27 @@ static int goto_func(char *arg, int flags)
 	}
 	else
 		return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
+#endif
+	unsigned long long val;
+	char *p = arg;
+	if (*arg == '+' || *arg == '-' || safe_parse_maxint (&p, &val))
+	{
+		errnum = ERR_BAT_GOTO;
+		return fallback_func(arg,flags);
+	}
+	errnum = ERR_BAT_GOTO;
+	return bat_find_label(arg);
 }
 
 static struct builtin builtin_goto =
 {
    "goto",
    goto_func,
-   BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT,
+   BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_MENU | BUILTIN_CMDLINE,
+   "goto [+|-|:]DESTINATION",
+   "e.g. goto [+|-]NUM. Use in menus. Jump to the specified title.\n"
+   "e.g. goto [:]LABEL. Use in batch files or menus. Jump to the specified ':LABEL'.\n"
+   "When the LABEL there is no prefix ':', the LABEL can't be a number."
 };
 
 static int call_func(char *arg,int flags)
@@ -17184,10 +17435,12 @@ static struct builtin builtin_call =
 
 static int exit_func(char *arg, int flags)
 {
+#if 0
   if (flags == BUILTIN_SCRIPT)
   {
     errnum = MAX_ERR_NUM;
   } else
+#endif
   {
     long long t = 0;
     read_val(&arg, &t);
@@ -17334,6 +17587,163 @@ static int grub_exec_run(char *program, char *psp, int flags)
 	pid = ((int (*)(char *,int))program)(arg, flags | BUILTIN_USER_PROG);/* pid holds return value. */
 	return pid;
 }
+
+unsigned short beep_duration;
+unsigned short *beep_buf_count;
+unsigned char i_count, beep_play, beep_mode, beep_enable = 0;
+extern unsigned short beep_buf[256];
+int beep_func(char *arg, int flags)
+{
+  unsigned long long val;
+  unsigned short *p;
+  unsigned char beep_state;
+  
+  if (beep_enable == 1)
+  {
+    if (i_count == 0)
+      goto play;
+    if (--beep_duration)
+      return 1;
+    else
+    {
+      beep_frequency = 0;
+      console_beep();
+      goto play;
+    }
+  }
+
+  beep_state = 0;
+  beep_mode = 0;
+  beep_duration = 0;
+  beep_play = 1;
+  p = beep_buf;
+
+  while (1)
+  {
+    if (grub_memcmp(arg,"--play=",7) == 0)
+    {
+      arg += 7;
+      if (safe_parse_maxint (&arg, &val))
+        beep_play = val;
+      if (!beep_play)
+      {
+        beep_enable = 0;
+        beep_frequency = 0;
+        console_beep();
+        return 1;
+      }
+    }
+    else if (grub_memcmp(arg,"--start",7) == 0)
+    {
+      arg += 7;
+      beep_state = 1;
+      p = beep_buf;
+    }
+    else if (grub_memcmp(arg,"--mid",5) == 0)
+    {
+      arg += 5;
+      beep_state = 2;
+      p = beep_buf_count;
+    }
+    else if (grub_memcmp(arg,"--end",5) == 0)
+    {
+      arg += 5;
+      beep_state = 0;
+      p = beep_buf_count;
+    }
+    else if (grub_memcmp(arg,"--nowait",8) == 0)
+    {
+      arg += 8;
+      beep_mode = 1;
+    }
+    else
+      break;
+    arg = skip_to (0, arg);
+  }
+
+  while (*arg)
+  {    
+    if (safe_parse_maxint (&arg, &val))
+    {     
+      if (val < 20)
+        *p++ = 0;
+      else
+        *p++ = 1193180 / (unsigned long)val;
+    }
+    arg = skip_to (0, arg);
+    if (safe_parse_maxint (&arg, &val))
+      *p++ = (unsigned long)val;
+    arg = skip_to (0, arg);
+  }
+  beep_buf_count = p;
+  
+  if (beep_state)
+    return 1;
+  *p++ = 0;
+  *p++ = 0;
+  i_count = 0;
+  
+  if (beep_enable == 0 && beep_mode)
+  {
+    beep_enable = 1;
+    return 1;
+  }
+ 
+play:
+  if (i_count > 252)
+    return 0;
+  beep_frequency = beep_buf[i_count];
+  beep_duration = beep_buf[i_count+1];
+
+  if (beep_frequency == 0 && beep_duration == 0)
+  {
+    if (beep_play < 0xff)
+      beep_play--;
+    if (beep_play == 0)
+    {
+      beep_enable = 0;
+      return 1;
+    }
+    i_count = 0;
+    goto play;
+  }
+  else if (beep_frequency)
+    console_beep();
+
+  if (!beep_mode)
+  {
+    if (console_checkkey () != -1)
+    {
+      console_getkey ();
+      beep_frequency = 0;
+      console_beep();
+      beep_enable = 0;
+      beep_play = 0;
+      return 0;
+    }
+    defer(beep_duration);
+    beep_frequency = 0;
+    console_beep();
+    i_count += 2;
+    goto play;
+  }
+
+  i_count += 2;
+  return 1;
+}
+
+static struct builtin builtin_beep =
+{
+  "beep",
+  beep_func,
+  BUILTIN_BAT_SCRIPT | BUILTIN_SCRIPT | BUILTIN_CMDLINE | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  "beep [--start|--mid|--end] [--play=N] [--nowait] FREQUENCY DURATION FREQUENCY DURATION ...",
+  "FREQUENCY: Hz. DURATION: ms. Max: 126 notes.\n"
+  "N: 0-255. 0 is stop play, 255 is continuous play (any key stops play).\n"
+  "When the syllable is a lot, can be written in different lines.\n"
+  "The use of [--start|--mid|--end] specifies."
+};
+
 
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
@@ -17341,6 +17751,7 @@ struct builtin *builtin_table[] =
 #ifdef SUPPORT_GRAPHICS
   &builtin_background,
 #endif
+  &builtin_beep,
   &builtin_blocklist,
   &builtin_boot,
   &builtin_calc,

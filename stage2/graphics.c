@@ -940,15 +940,25 @@ graphics_cls (void)
 			{
 //				*(unsigned long *)mem = SPLASH_IMAGE[x+y*SPLASH_W];
 				lfb = (unsigned char *)SPLASH_IMAGE + x*current_bytes_per_pixel + y*current_bytes_per_scanline;
-				if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+				if(current_bits_per_pixel == 32)
 					*(unsigned long *)mem = *(unsigned long *)lfb;
+				else if(current_bits_per_pixel == 24)
+				{
+					*(unsigned short *)mem = *(unsigned short *)lfb;
+					*(mem+2) = *(lfb+2);
+				}
 				else
 					*(unsigned short *)mem = *(unsigned short *)lfb;
 			}
 			else
 			{
-				if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+				if(current_bits_per_pixel == 32)
 					*(unsigned long *)mem = color;
+				else if(current_bits_per_pixel == 24)
+				{
+					*(unsigned short *)mem = (unsigned short)color;
+					*(mem+2) = (unsigned char)(color>>16);
+				}
 				else
 					*(unsigned short *)mem = (unsigned short)pixel_shift(color);
 			}
@@ -1012,6 +1022,22 @@ vga:
 #endif
 }
 
+void clear_entry (int x, int y, int w, int h);
+void
+clear_entry (int x, int y, int w, int h)
+{
+	int i;
+	unsigned char *source;
+	unsigned char *objective;
+
+	for (i=0;i<h;i++)
+	{
+		source = (unsigned char *)IMAGE_BUFFER + x*current_bytes_per_pixel + y*current_bytes_per_scanline + i*current_bytes_per_scanline;
+		objective = (unsigned char *)current_phys_base + x*current_bytes_per_pixel + y*current_bytes_per_scanline + i*current_bytes_per_scanline;
+		grub_memmove (objective,source,w*current_bytes_per_pixel);
+	}
+}
+
 void vbe_fill_color (unsigned long color);
 
 void
@@ -1020,120 +1046,118 @@ vbe_fill_color (unsigned long color)
   int i;
   unsigned char *p;
   
-  if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-  {
-    for (i=0;i<(current_x_resolution*current_y_resolution);i++)
-    {
-      p = (unsigned char *)IMAGE_BUFFER + i*4;
-      *(unsigned long *)p = color;
-    }
-  }
-  else
-  {
-    for (i=0;i<(current_x_resolution*current_y_resolution);i++)
-    {
-      p = (unsigned char *)IMAGE_BUFFER + i*2;
-      *(unsigned short *)p = (unsigned short)pixel_shift(color);
-    }
-  }
+	for (i=0;i<(current_x_resolution*current_y_resolution);i++)
+	{
+		p = (unsigned char *)IMAGE_BUFFER + 16 + i*current_bytes_per_pixel;
+		switch (current_bits_per_pixel)
+		{
+			case 32:
+				*(unsigned long *)p = color;
+				break;
+			case 24:
+				*(unsigned short *)p = (unsigned short)(color);
+				*(p+2) = (unsigned char)(color>>16);
+				break;
+			default:
+				*(unsigned short *)p = (unsigned short)pixel_shift(color);
+				break;
+		}
+	}
 }
 
 
 int animated (void);
 extern int use_phys_base;
 int use_phys_base=0;
-unsigned long delay0, old_tick, name_len;
+unsigned long delay0, delay1, name_len;
+char num;
+unsigned char animated_enable;
+unsigned char animated_enable_backup;
 
 int animated (void)
 {
-	unsigned long cur_tick, delay1;
-	char num=0, tmp[128];
+	char tmp[128];
 	unsigned long long val;
 	char *p;
+	int i, j;
 
   if (animated_delay)
   {
 		delay0 = animated_delay;
 		animated_delay=0;
-    cur_tick=currticks();
-		old_tick=cur_tick-0x100;
     name_len=grub_strlen(animated_name);
-		if (!(animated_type & 0x10) && (animated_type & 0x0f))
+		if ((num=animated_type & 0x0f) || (animated_type & 0x20))
 		{
-			num=animated_type & 0xf;
 			if (!(splashimage_loaded & 2) || !(cursor_state & 2))
 			{
 				setcursor (2);
 				cls ();
 			}
 		}
-	} 
-	while (animated_type && (cursor_state & 2))
-	{
-		cur_tick=currticks();
-		
-    if (cur_tick>old_tick)
-      delay1=cur_tick-old_tick;
-    else if (cur_tick<old_tick)
-      delay1=cur_tick+(0xffffffff-old_tick);
-		else
-      delay1 = 0;
-  		
-    if (delay0 <= delay1)
+    if (!(animated_type & 0x20))
     {
-			if (!(animated_type & 0x10) && (animated_type & 0x0f) && !num)
-			{
-				animated_type = 0;
-				return 1;
-			}
-			sprintf(tmp,"--offset=%d=%d=%d %s",(animated_type & 0x80),animated_offset_x,animated_offset_y,animated_name);
-			use_phys_base=1;
-			if (! splashimage_func(tmp,1))
-				animated_type = 0;
-			if (animated_name[name_len-5]<0x39)
-				animated_name[name_len-5] += 1; 
-			else
-			{
-				animated_name[name_len-5]=0x30;
-				if (animated_name[name_len-6]>=0x30 && animated_name[name_len-6]<0x39)
-					animated_name[name_len-6] += 1;
-				else if (animated_name[name_len-6]==0x39)
-				{
-					animated_name[name_len-6]=0x30;
-					if (animated_name[name_len-7]>=0x30 && animated_name[name_len-7]<0x39)
-						animated_name[name_len-7] += 1;
-					else if (animated_name[name_len-7]==0x39)
-						animated_name[name_len-7]=0x30;
-				}
-			}
- 
-			old_tick=cur_tick;
-			if (animated_name[name_len-7]>=0x30 && animated_name[name_len-7]<=0x39)
-				p=&animated_name[name_len-7];
-			else if (animated_name[name_len-6]>=0x30 && animated_name[name_len-6]<=0x39)
-			p=&animated_name[name_len-6];
-			else
-				p=&animated_name[name_len-5];
-			safe_parse_maxint (&p, &val);
+      delay1 = 1;
+      animated_enable = 1;
+      animated_enable_backup = 1;
+      return 1;
+    }
+	} 
+	while (animated_type)
+	{
+    if (!(animated_type & 0x20))
+    {
+      if (--delay1)
+        return 1;
+    }
 
-			if (val>animated_last_num || !val)
+    for (i=0; i<animated_last_num; i++)
+    {
+			if (((animated_type & 0x0f) && !num) || (animated_type & 0x20 && (console_checkkey () != -1) && console_getkey ()))
 			{
-				if (!(animated_type & 0x10) && (animated_type & 0x0f))
+        animated_enable = 0;
+        animated_type = 0;
+        return 0x3c00;
+			}
+
+      use_phys_base=1;
+      sprintf(tmp,"--offset=%d=%d=%d %s",(animated_type & 0x80),animated_offset_x,animated_offset_y,animated_name);
+      splashimage_func(tmp,1);
+
+      p = &animated_name[name_len-5];
+      while(*p>=0x30 && *p<=0x39) p--;
+      j = &animated_name[name_len-5] - p++;
+      safe_parse_maxint (&p, &val);
+      if ((unsigned char)val == animated_last_num)
+      {
+				if ((animated_type & 0x0f))
 					num--;
-				animated_name[name_len-5]=0x31;
-				if (animated_name[name_len-6]>=0x30 && animated_name[name_len-6]<=0x39)
-				animated_name[name_len-6]=0x30;
-				if (animated_name[name_len-7]>=0x30 && animated_name[name_len-7]<=0x39)
-					animated_name[name_len-7]=0x30;
-			} 
-		}  
-		if (animated_type & 0x10)
-			return 1;
+        val = 1;
+      }
+      else
+        val++;
+
+      if (j==1)
+        sprintf(tmp,"%d",val); 
+      else if (j==2)
+        sprintf(tmp,"%02d",val);
+      else if (j==3)
+        sprintf(tmp,"%03d",val);
+      else
+        sprintf(tmp,"%04d",val);
+      grub_memmove(&animated_name[name_len-5-j+1], tmp, j);
+      
+      delay1 = delay0;
+      if (!(animated_type & 0x20))
+        return 1;
+      else
+        defer (delay1);
+		}
   } 
 	return 0;
 }
 
-unsigned char RGB;
+unsigned char R0,G0,B0,R1,G1,B1;
+int only;
 
 static int read_image_bmp(int type)
 {
@@ -1156,9 +1180,11 @@ static int read_image_bmp(int type)
 		unsigned long  biClrUsed; 
 		unsigned long  biClrImportant;
 	} __attribute__ ((packed)) bmih;
-	unsigned long bftmp,bfbit,bftmp0=0;
+	unsigned long bftmp,bfbit;
 	int x,y;
-	unsigned long source;
+	unsigned long source = 0;
+	unsigned char R,G,B;
+	only = 0;
 	if (type == 0)
 		return 0;
 	filepos = 10;
@@ -1183,36 +1209,80 @@ static int read_image_bmp(int type)
 		for(x=0;x<bmih.biWidth;++x)
 		{
 			grub_read((unsigned long long)(unsigned int)(char*)&bftmp,bfbit, GRUB_READ);
-			if(x==0 && y==bmih.biHeight-1)
-			{
-				RGB=0xaa;
-				bftmp0=bftmp;
-				if (bftmp==0xffffff)
-					RGB=0xff;
-				else if (bftmp==0)
-					RGB=0;
-			}
+      if (only==0)
+      {
+        only=1;
+        B = (bftmp & 0xff0000)>>16;
+        G = (bftmp & 0xff00)>>8;
+        R = bftmp & 0xff;
+        if (B <= 0xef)
+          B1 = B+0x10;
+        else
+          B1 = 0xff;
+            
+        if (G <= 0xef)
+          G1 = G+0x10;
+        else
+          G1 = 0xff;
+            
+        if (R <= 0xef)
+          R1 = R+0x10;
+        else
+          R1 = 0xff;
+            
+        if (B >= 0x10)
+          B0 = B-0x10;
+        else
+          B0 = 0;
+            
+        if (G >= 0x10)
+          G0 = G-0x10;
+        else
+          G0 = 0;
+            
+        if (R >= 0x10)
+          R0 = R-0x10;
+        else
+          R0 = 0;
+      }
 			if(y < bmih.biHeight && x < bmih.biWidth)
 				if((y+Y_offset) < current_y_resolution && (x+X_offset) < current_x_resolution)
 				{
-					if (use_phys_base !=1)
+					if (use_phys_base == 0)
 						bmp = (unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline;
 					else
 						bmp = (unsigned char *)current_phys_base+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline;
 					
-					if(background_transparent	&& (((bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16) && RGB!=0xaa)?
-								((RGB==0xff) ? ((bftmp & 0xff)>=0xf0) :	((bftmp & 0xff)<=0x1f)) : (bftmp==bftmp0)))
-						source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
-					else if ((graphic_type & 1) && is_highlight)
-						source = current_color_64bit & 0xffffffff;
-					else if ((graphic_type & 2) && is_highlight)
-						source = bftmp ^ 0xffffffff;
+          B = (bftmp & 0xff0000)>>16;
+          G = (bftmp & 0xff00)>>8;
+          R = bftmp & 0xff;
+					if ((R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
+					{
+						if (background_transparent || (graphic_enable && (graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
+						else if (graphic_enable && is_highlight && (graphic_type & 8))
+							source = current_color_64bit & 0xffffffff;
+						else if (!graphic_enable || (graphic_enable && !(graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = bftmp;
+					}
 					else
-						source = bftmp;
-						
-					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+					{
+						if (graphic_enable && is_highlight && (graphic_type & 1))	
+							source = current_color_64bit & 0xffffffff;
+						else if (graphic_enable && is_highlight && (graphic_type & 2))
+							source = bftmp ^ 0xffffffff;
+						else
+							source = bftmp;
+					}
+				
+					if(current_bits_per_pixel == 32)
 //				bmp[x] = bftmp;		//
 						*(unsigned long *)bmp = source;
+					else if(current_bits_per_pixel == 24)
+					{
+						*(unsigned short *)bmp = (unsigned short)source;
+						*(bmp+2) = (unsigned char)(source>>16);
+					}
 					else
 						*(unsigned short *)bmp = (unsigned short)pixel_shift(source);
 				}
@@ -1278,7 +1348,6 @@ short restart;
 static long iclip[1024];
 static long	*iclp;
 unsigned long long size;
-unsigned char R0,G0,B0;
 ///////////////////////////////////////////////
 static void GetYUV(short flag)
 {
@@ -1316,7 +1385,7 @@ static void StoreBuffer()
 	unsigned char R,G,B;
 	int y,u,v,rr,gg,bb;
 	unsigned long color;
-	unsigned long source;
+	unsigned long source = 0;
 
 	for(i=0;i<SampRate_Y_V*8;i++)
 	{
@@ -1357,39 +1426,73 @@ static void StoreBuffer()
 							B=0;
 					}
 					
-					if (sizei==0 && sizej==0)
+					if (only==0)
 					{
-						RGB=0xaa;
-						B0=B;
-						G0=G;
-						R0=R;
-						if (B0==G0 && B0==R0)
-						{
-							if (B0==0xff)
-								RGB=0xff;
-							else if (B0==0)
-								RGB=0;
-						}
+            only=1;
+						if (B <= 0xef)
+              B1 = B+0x10;
+            else
+              B1 = 0xff;
+            
+            if (G <= 0xef)
+              G1 = G+0x10;
+            else
+              G1 = 0xff;
+            
+            if (R <= 0xef)
+              R1 = R+0x10;
+            else
+              R1 = 0xff;
+            
+            if (B >= 0x10)
+              B0 = B-0x10;
+            else
+              B0 = 0;
+            
+            if (G >= 0x10)
+              G0 = G-0x10;
+            else
+              G0 = 0;
+            
+            if (R >= 0x10)
+              R0 = R-0x10;
+            else
+              R0 = 0;
 					}
 						
-					if (use_phys_base != 1)
+					if (use_phys_base == 0)
 						lfb = (unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
-					else				
+					else
 						lfb = (unsigned char *)current_phys_base + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
 					
 					color = (((unsigned long)R)<<16) | (((unsigned long)G)<<8) | (unsigned long)B;
-					if(background_transparent	&& ((B==G && B==R && RGB!=0xaa)?
-								((RGB==0xff) ? (B>=0xf0) : (B<=0x1f)) : (B==B0 && G==G0 && R==R0)))
-						source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
-					else if ((graphic_type & 1) && is_highlight)
-						source = current_color_64bit & 0xffffffff;
-					else if ((graphic_type & 2) && is_highlight)
-						source = color ^ 0xffffffff;
-					else
-						source = color;
 					
-					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+					if ((R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
+					{
+						if (background_transparent || (graphic_enable && (graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
+						else if (graphic_enable && is_highlight && (graphic_type & 8))
+							source = current_color_64bit & 0xffffffff;
+						else if (!graphic_enable || (graphic_enable && !(graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = color;
+					}
+					else
+					{
+						if (graphic_enable && is_highlight && (graphic_type & 1))
+							source = current_color_64bit & 0xffffffff;
+						else if (graphic_enable && is_highlight && (graphic_type & 2))
+							source = color ^ 0xffffffff;
+						else
+							source = color;
+					}
+				
+					if(current_bits_per_pixel == 32)
 						*(unsigned long *)lfb = source;
+					else if(current_bits_per_pixel == 24)
+					{
+						*(unsigned short *)lfb = (unsigned short)source;
+						*(lfb+2) = (unsigned char)(source>>16);
+					}
 					else
 						*(unsigned short *)lfb = (unsigned short)pixel_shift(source);
 				}
@@ -1876,6 +1979,7 @@ static void InitTable()
 		iclip[i]=0;
 	ycoef=ucoef=vcoef=0;
 	interval=0;
+  only=0;
 //	return 1;
 }
 /////////////////////////////////////////////////////////////////////////
@@ -2257,7 +2361,10 @@ unsigned long pixel_shift(unsigned long color)
 	gg = g & 07;
 	bb = b & 0xf;
 
-	color = (r>>3)<<11 | (g>>2)<<5 | b>>3;
+	if (current_bits_per_pixel == 16)
+		color = (r>>3)<<11 | (g>>2)<<5 | b>>3;
+	else
+		color = (r>>3)<<10 | (g>>3)<<5 | b>>3;
 	return color;
 }
 
@@ -2365,9 +2472,13 @@ graphics_scroll (void)
     }
     else
     {/* VBE */
-
+#if 0
 	memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
 		    (y1 - 1) * current_bytes_per_scanline * (font_h + line_spacing));
+#else
+  grub_memcpy ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
+		    (y1 - 1) * current_bytes_per_scanline * (font_h + line_spacing));
+#endif
     }
 
     for (i=0;i<current_term->chars_per_line;++i)
@@ -2457,7 +2568,7 @@ vbe_cursor (int set)
 	y = fonty * (font_h+line_spacing);
 	y += line_spacing>>1;
     /* invert the beginning 1 vertical lines of the char */
-	for (j = 2; j < 14; ++j)
+	for (j = 2; j < font_h - 2; ++j)
 	{
 	    XorPixel (x, y + j, -1);
 	}
