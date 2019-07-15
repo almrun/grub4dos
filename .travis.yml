@@ -27,7 +27,7 @@ before_script:
 script:
   - ./build
 
-after_success:
+after_deploy:
   - eval $SUCCESS
 
 notifications:
